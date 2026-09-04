@@ -1,4 +1,7 @@
-const API_BASE = "http://localhost:5050/api";
+// VITE_API_URL is set at build time (see .env.example / your deploy
+// platform's env vars). Falls back to localhost so `npm run dev` needs
+// no extra setup — this is the only place the backend's URL is defined.
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5050/api";
 
 async function request(endpoint, options = {}) {
   const token = localStorage.getItem("token");
@@ -39,7 +42,9 @@ export const api = {
     ).toString();
     return request(`/meals${qs ? `?${qs}` : ""}`);
   },
-  getMealDetails: (id, userId) => request(`/meals/${id}${userId ? `?userId=${userId}` : ""}`),
+  // Favorite-status is now derived server-side from the auth token, not
+  // a client-supplied id — nothing to pass here anymore.
+  getMealDetails: (id) => request(`/meals/${id}`),
   getSwapOptions: (id, filter = "") => request(`/meals/${id}/swap-options${filter ? `?filter=${filter}` : ""}`),
 
   // Meal Planner

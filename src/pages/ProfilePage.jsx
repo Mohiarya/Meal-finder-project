@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api from "../api";
+import { onImageError } from "../utils/imageFallback";
 
 const ProfilePage = () => {
   const { user, profile, updateProfile } = useAuth();
@@ -313,6 +314,7 @@ const ProfilePage = () => {
                 <img
                   src={fav.imageUrl}
                   alt={fav.title}
+                  onError={onImageError}
                   className="w-12 h-12 rounded-xl object-cover"
                 />
                 <div>

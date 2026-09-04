@@ -181,6 +181,16 @@ router.post("/plan-meal", authenticateToken, async (req, res) => {
   }
 });
 
+// A PlannedMeal has no userId column of its own — ownership is
+// transitive through the MealPlan it belongs to. This is the one place
+// that check happens, used by every endpoint below that mutates a
+// planned meal by bare id, so it can't be forgotten route-by-route again.
+async function findOwnedPlannedMeal(id, userId) {
+  return prisma.plannedMeal.findFirst({
+    where: { id, mealPlan: { userId } },
+  });
+}
+
 // PUT /api/meal-plans/swap-meal
 router.put("/swap-meal", authenticateToken, async (req, res) => {
   try {
@@ -188,6 +198,11 @@ router.put("/swap-meal", authenticateToken, async (req, res) => {
 
     if (!plannedMealId || !newMealId) {
       return res.status(400).json({ error: "Planned meal ID and new meal ID are required" });
+    }
+
+    const owned = await findOwnedPlannedMeal(plannedMealId, req.user.id);
+    if (!owned) {
+      return res.status(404).json({ error: "Planned meal not found" });
     }
 
     const updated = await prisma.plannedMeal.update({
@@ -211,9 +226,16 @@ router.delete("/planned-meal/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    await prisma.plannedMeal.delete({
-      where: { id },
+    // deleteMany (not delete) so the ownership filter can live in the
+    // same query — matches 0 rows instead of throwing if it's not yours,
+    // and either way nothing but your own data can ever be affected.
+    const result = await prisma.plannedMeal.deleteMany({
+      where: { id, mealPlan: { userId: req.user.id } },
     });
+
+    if (result.count === 0) {
+      return res.status(404).json({ error: "Planned meal not found" });
+    }
 
     res.json({ message: "Meal removed from plan" });
   } catch (error) {
@@ -227,6 +249,11 @@ router.patch("/planned-meal/:id/complete", authenticateToken, async (req, res) =
   try {
     const { id } = req.params;
     const { isCompleted } = req.body;
+
+    const owned = await findOwnedPlannedMeal(id, req.user.id);
+    if (!owned) {
+      return res.status(404).json({ error: "Planned meal not found" });
+    }
 
     const updated = await prisma.plannedMeal.update({
       where: { id },

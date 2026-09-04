@@ -4,17 +4,18 @@ import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
 import { authenticateToken } from "../middleware/auth.js";
 import { calculateNutritionTargets } from "../utils/nutritionCalculator.js";
+import { getJwtSecret, JWT_EXPIRY } from "../config/jwt.js";
+import { authLimiter } from "../middleware/rateLimiters.js";
 
 const router = express.Router();
 
 // Helper to sign JWT
 function generateToken(userId) {
-  const secret = process.env.JWT_SECRET || "meal-finder-jwt-secret-key-prod-grade-2026";
-  return jwt.sign({ userId }, secret, { expiresIn: "30d" });
+  return jwt.sign({ userId }, getJwtSecret(), { expiresIn: JWT_EXPIRY });
 }
 
 // POST /api/auth/register
-router.post("/register", async (req, res) => {
+router.post("/register", authLimiter, async (req, res) => {
   try {
     const { email, password, name, age, gender, weight, height, goal, dietPreference } = req.body;
 
@@ -75,7 +76,7 @@ router.post("/register", async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 

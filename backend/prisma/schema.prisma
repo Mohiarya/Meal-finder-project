@@ -89,6 +89,10 @@ model MealIngredient {
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
   amount       Float
   unit         String
+
+  // Every meal fetch includes its ingredients via this relation — the
+  // single most frequently joined table in the app.
+  @@index([mealId])
 }
 
 model MealPlan {
@@ -114,6 +118,12 @@ model PlannedMeal {
   slot        String   // breakfast, lunch, dinner, snack
   servings    Int      @default(1)
   isCompleted Boolean  @default(false)
+
+  // mealPlanId: every planned-meal lookup goes through its parent plan
+  // (including the ownership check in routes/mealPlans.js). mealId: used
+  // by swap-meal and by cascade lookups when a Meal is edited/removed.
+  @@index([mealPlanId])
+  @@index([mealId])
 }
 
 model MealLog {
@@ -131,6 +141,11 @@ model MealLog {
   carbs     Float
   fat       Float
   servings  Int      @default(1)
+
+  // The (userId, date) pair is the actual query shape used everywhere —
+  // tracker.js's daily/weekly views and ai.js's "today's context" both
+  // filter on exactly this combination.
+  @@index([userId, date])
 }
 
 model WaterLog {
@@ -164,4 +179,8 @@ model GroceryItem {
   totalAmount   Float
   unit          String
   isChecked     Boolean @default(false)
+
+  // grocery.js filters by exactly this pair on every request (the
+  // week's list) — matches the MealLog(userId, date) reasoning above.
+  @@index([userId, weekStartDate])
 }

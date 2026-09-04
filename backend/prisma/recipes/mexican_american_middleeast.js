@@ -89,7 +89,7 @@ export const mexicanAmericanMiddleEastRecipes = [
   {
     title: "Baja Grilled Fish Tacos with Lime Slaw",
     description: "Seasoned grilled white fish fillets tucked into warm corn tortillas with crunchy purple cabbage slaw, pico de gallo, and chipotle crema.",
-    imageUrl: "https://images.unsplash.com/photo-1512838243191-e81e88c009a0?w=800&auto=format&fit=crop&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1615870216519-2f9fa575fa5c?w=800&auto=format&fit=crop&q=80",
     calories: 390,
     protein: 34,
     carbs: 38,

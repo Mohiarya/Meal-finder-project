@@ -1,177 +1,230 @@
-# Meal Finder & AI Nutrition Platform 🥗⚡
+# Meal Finder AI
 
-[![React 19](https://img.shields.io/badge/React-19.1-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-8.2-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![Express](https://img.shields.io/badge/Express-4.21-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
-[![Prisma](https://img.shields.io/badge/Prisma-6.4-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
-[![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![React 19](https://img.shields.io/badge/React-19.1-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.2-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-4.21-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com/)
+[![Prisma](https://img.shields.io/badge/Prisma-6.4-2D3748?style=flat-square&logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
-A production-grade, full-stack **AI-powered nutrition and meal planning platform** engineered to solve dietary decision fatigue. Features a chef-curated 110-recipe database, a deterministic macro-aware recommendation engine that eliminates AI hallucinations, an interactive 7-day meal planner, real-time macro tracking against personalized TDEE targets, and synchronized smart grocery lists.
+A full-stack nutrition and meal-planning app: a 110-recipe database, a **deterministic** (non-LLM) recommendation engine that enforces hard nutritional and dietary constraints instead of trusting an AI model to get them right, a 7-day meal planner, daily macro/hydration tracking against personalized TDEE targets, and a grocery list auto-generated from the planned week.
 
----
-
-## 🌟 Key Features
-
-### 1. 🤖 Deterministic AI Nutrition Copilot (`/ai`)
-- **Multi-Constraint Semantic Parser**: Extracts explicit calorie ceilings, protein floors, meal slots (Breakfast, Lunch, Dinner, Snack), dietary preferences, and allergens simultaneously.
-- **Protein-to-Calorie Density Scoring**:
-  $$\text{Score} = \left(\frac{\text{Protein}}{\text{Calories} / 100}\right) \times 15 + \text{ProximityBonus} + \text{CuisineBonus}$$
-  Guarantees that low-calorie high-protein queries prioritize lean nutrient-dense options over high-calorie dishes.
-- **Zero-Hallucination Integrity**: Every calorie, macro gram, and ingredient is queried directly from the verified database.
-- **Cook With What I Have**: Match in-home pantry items against the recipe database with percentage scoring and **1-click missing ingredient sync** to your grocery list.
-
-### 2. 🍳 Gourmet Recipe Catalog (`/meals`)
-- **110 Curated Recipes** across 10 authentic cuisines:
-  - **Indian** (Sambar Idli, Moong Dal Chilla, Paneer Tikka, Rajma Masala, Palak Tofu, Fish Tikka Masala, etc.)
-  - **Mediterranean** (Shakshuka, Souvlaki, Baked Cod, Salmon with Asparagus, Greek Yogurt Bowls, etc.)
-  - **Italian** (Tuscan Garlic Shrimp, Turkey Bolognese, Chicken Piccata, Minestrone, Caprese Quinoa, etc.)
-  - **Mexican** (Huevos Rancheros, Chipotle Burrito Bowl, Baja Fish Tacos, Chicken Tinga, etc.)
-  - **American** (Keto Spinach Omelet, Lean Turkey Burger, Air-Fried Lemon Herb Tenders, Buffalo Wraps, etc.)
-  - **Middle Eastern** (Labneh Za'atar Flatbread, Chicken Shawarma, Mujadara, Shish Tawook, Falafel, etc.)
-  - **Japanese** (Miso Silken Tofu, Salmon Poke, Chicken Oyakodon, Yakitori Skewers, Soba Noodles, etc.)
-  - **Korean** (Gilgeori Toast, Bibimbap with Crispy Tofu, Beef Bulgogi, Sundubu Jjigae, Dubu Jorim, etc.)
-  - **Thai** (Pad Krapow Gai, Coconut Green Curry, Tom Kha Gai, Lemongrass Chicken Larb, etc.)
-  - **Asian Fusion** (Crispy Tofu Peanut Crunch Salad, Ginger Scallion Cod, Egg Rice Bowl, etc.)
-- **Interactive Scaler**: Dynamically scales ingredients and nutrition when toggling serving sizes (1x to 4x).
-- **Fast Sorting & Pagination**: Sort by *Lowest Calories*, *Highest Calories*, *Highest Protein Density*, or *Fastest Prep*, with 18-recipe client-side pagination.
-
-### 3. 📅 Weekly Meal Planner (`/planner`)
-- 7-Day interactive schedule (Monday to Sunday) across 4 daily slots.
-- **1-Click Smart Swap**: Recommends macro-compatible alternatives when replacing any planned meal.
-- Duplicate full days or mark meals as completed.
-
-### 4. 📊 Live Nutrition Tracker & Analytics (`/tracker`)
-- Daily calorie, protein, carbs, and fat progress rings calculated against Mifflin-St Jeor TDEE formulas.
-- Hydration tracker with rapid-log buttons.
-- Weekly compliance analytics and macro trends.
-
-### 5. 🛒 Smart Consolidated Grocery List (`/grocery`)
-- Aggregates ingredients automatically across all planned meals for the week.
-- Categorized by department (*Produce*, *Protein*, *Dairy*, *Grains*, *Pantry*, *Spices*).
-- Interactive checklist with item completion and clear actions.
+An optional OpenAI key can be added to rephrase the engine's already-computed recommendation in a more conversational tone — the app is fully functional, and every number it shows is database-verified, without that key.
 
 ---
 
-## 🏗 Architecture Overview
+## Key Features
+
+### 1. Deterministic AI Nutrition Copilot (`/ai`)
+- **Multi-constraint parsing**: extracts calorie ceilings, protein floors, meal slot, diet, cuisine, prep time, and allergens from a natural-language prompt, and always layers in the user's persistent profile (allergies, dislikes, diet) even when the prompt doesn't mention them.
+- **Hard constraints, not suggestions**: allergens and diet restrictions are filtered *before* any ranking happens — a result can never violate them, even under fallback relaxation (which only ever loosens cuisine/calorie/protein *closeness*, never diet or allergens).
+- **Protein-density ranking**: candidates are scored primarily on protein-per-100kcal so a low-calorie/high-protein request can't surface a high-calorie dish.
+- **Every number comes from the database.** The AI layer (when an OpenAI key is configured) only rephrases the headline/reason text for an already-selected meal — it cannot invent a recipe, a calorie count, or a macro.
+- **Cook With What I Have**: matches pantry ingredients against the recipe database with a percentage score and pushes missing ingredients to the grocery list in one click.
+
+### 2. Recipe Catalog (`/meals`)
+- 110 recipes spanning 10 cuisines (Indian, Mediterranean, Italian, Mexican, American, Middle Eastern, Japanese, Korean, Thai, Asian Fusion), each with full macros, ingredients, and step-by-step instructions.
+- Serving-size scaler that recalculates macros and ingredient quantities live.
+- Sort by calories, protein density, or prep time; search and meal-slot filtering.
+
+### 3. Weekly Meal Planner (`/planner`)
+- A 7-day × 4-slot grid. Smart Swap suggests macro-comparable alternatives for any planned meal. Duplicate a day's plan to another day; mark meals eaten to log them automatically.
+
+### 4. Nutrition Tracker & Analytics (`/tracker`)
+- Daily calorie/protein/carb/fat progress against Mifflin-St Jeor-derived targets, hydration logging, and a 7-day trend view.
+
+### 5. Grocery List (`/grocery`)
+- Auto-consolidated from every meal in the current week's plan, grouped by category, with a shopping checklist.
+
+---
+
+## Architecture
 
 ```mermaid
 graph TD
-    A[React 19 + Vite Frontend] -->|JWT Bearer Auth| B(Express Backend API - Port 5050)
+    A[React 19 + Vite Frontend] -->|JWT Bearer Auth| B(Express Backend API - port 5050)
     B --> C[Auth & Profile Router]
     B --> D[Meals Router]
     B --> E[AI Assistant Router]
     B --> F[Meal Planner Router]
     B --> G[Nutrition Tracker Router]
     B --> H[Grocery Router]
-    
-    E -->|Extract Constraints & Density Scoring| I[(SQLite DB via Prisma)]
-    E -.->|Optional Conversational Tone| J[OpenAI GPT-4o-mini]
+
+    E --> K[recommendationEngine.js\nconstraint filtering + ranking]
+    K --> I[(SQLite via Prisma)]
+    E -.->|optional: rephrase text only| J[OpenAI GPT-4o-mini]
     D --> I
     F --> I
     G --> I
     H --> I
 ```
 
+The AI Assistant chat and the Dashboard's unprompted "what's next" suggestion both go through the same `recommendationEngine.js` — constraint extraction, hard filtering, and fallback relaxation are shared, so a bug fixed in one path can't silently persist in the other. Only the final ranking strategy differs by design: the assistant ranks by relevance to the prompt, the dashboard ranks by closeness to the user's remaining calorie/protein budget.
+
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Prerequisites
-- **Node.js** v18.0 or higher
-- **npm** v9.0 or higher
+- Node.js v18+ and npm v9+
 
-### 2. Installation
-Clone the repository and install all root and backend dependencies:
+### 2. Install
+
+This repo has **two independent npm projects** — the root (frontend) and `backend/` — each with its own `package.json` and `node_modules`. Install both:
 
 ```bash
-# Clone the repository
 git clone https://github.com/Mohiarya/Meal-finder-project.git
 cd Meal-finder-project
 
-# Install frontend dependencies
 npm install
-
-# Install backend dependencies
 cd backend && npm install && cd ..
 ```
 
-### 3. Database Initialization & Seeding
-Set up the SQLite database and seed the 110 gourmet recipes:
+### 3. Configure environment variables
+
+Copy the two `.env.example` files and fill them in:
+
+```bash
+cp .env.example .env
+cp backend/.env.example backend/.env
+```
+
+`backend/.env` needs a real `JWT_SECRET` — the server refuses to start without one. Generate one with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+`OPENAI_API_KEY` is optional (see [AI Configuration](#ai-configuration)). The frontend's `.env` (`VITE_API_URL`) can stay empty for local development — it falls back to `http://localhost:5050/api`.
+
+### 4. Initialize and seed the database
 
 ```bash
 npm run seed
 ```
 
-### 4. Running the Platform
-Start the backend API and frontend dev server in separate terminal windows:
+This creates `backend/prisma/dev.db`, seeds the 110 recipes, and creates a demo account (see below).
+
+### 5. Run it
+
+In two terminals:
 
 ```bash
-# Terminal 1: Backend API (runs on port 5050)
+# Terminal 1 — backend API on port 5050
 npm run server
 
-# Terminal 2: Frontend Web App (runs on port 3002)
-npm run dev -- --port 3002
+# Terminal 2 — frontend on port 5173
+npm run dev
 ```
 
-Navigate to **[http://localhost:3002](http://localhost:3002)** in your browser.
+Open **http://localhost:5173**. (If you run the frontend on a different port, add it to `backend/app.js`'s CORS allowlist or set `CLIENT_ORIGIN` in `backend/.env`.)
+
+### 6. Run the tests
+
+```bash
+npm run test              # frontend — Vitest
+cd backend && npm run test  # backend — node:test
+```
 
 ---
 
-## 🔑 Demo Account Credentials
+## Demo Account
 
-A pre-configured demo account with historical logs, macro targets, and an active weekly plan is ready out of the box:
+```
+Email:    demo@mealfinder.com
+Password: demo12345
+```
 
-| Email | Password | Daily Calorie Goal | Daily Protein Target |
-|---|---|---|---|
-| `demo@mealfinder.com` | `demo12345` | 2,350 kcal | 165g |
+Seeded with a sample profile, macro targets, and weekly plan so the app is immediately explorable without registering. The login page also has a one-click "Demo Login" button.
 
 ---
 
-## 📡 Key API Endpoints
+## AI Configuration
+
+`OPENAI_API_KEY` in `backend/.env` is optional. Without it, the AI Assistant still works end-to-end — headline and reason text are generated deterministically from the same data the recommendation is built from. With a key set, that text is passed through GPT-4o-mini to be rephrased more conversationally; the model receives the already-selected meal's real data and is not permitted to change the calories, macros, or ingredients, and its output is validated (length and shape) before being shown — a malformed or empty AI response silently falls back to the deterministic text rather than breaking the page.
+
+---
+
+## Testing
+
+- **Backend** (`backend/*.test.js`, run via `node --test`): unit tests for the recommendation engine's constraint extraction, hard-constraint filtering, fallback relaxation, and ranking; unit tests for the nutrition-target calculator (BMR/TDEE/macro-split math, including edge cases like the weight-loss calorie floor and malformed profile input); integration tests against the real Express app covering auth, and — the most security-relevant tests in the suite — that one user genuinely cannot read, modify, or delete another user's meal plans, tracker logs, favorites, or grocery items (verified both by HTTP status and by querying the database directly afterward).
+- **Frontend** (`src/**/*.test.jsx`, run via Vitest): covers `ProtectedRoute`'s auth-gating behavior (loading state, redirect when logged out, render when logged in).
+
+Coverage is intentionally scoped to logic where a bug would be silent and high-impact (constraint violations, cross-user data access, macro math) rather than chasing a coverage percentage.
+
+---
+
+## Security Notes
+
+- Passwords are hashed with bcrypt; sessions are JWTs sent as a `Bearer` token (not cookies).
+- Every meal-plan/tracker/favorite/grocery mutation verifies the resource belongs to the authenticated user before touching it, rather than trusting a client-supplied ID.
+- CORS is an explicit allowlist (`localhost:3002`, `localhost:5173`, and `CLIENT_ORIGIN` in production) — not `origin: "*"` — since the JWT is bearer-token-based and an open CORS policy would let any origin holding a copy of a token replay it.
+- Auth and AI endpoints are rate-limited (20 requests / 10 minutes) against brute-force and cost abuse.
+- Unhandled server errors return a generic message; only CORS rejections get a specific one. Internal error details are never sent to the client.
+
+---
+
+## Known Limitations
+
+Being direct about what this project is and isn't, per the philosophy above:
+
+- **Recipe photography**: 110 recipes draw from 38 unique Unsplash images, so most photos are shared across more than one recipe. Three recipes that had a genuinely mismatched or dead image were fixed and manually verified; the remaining sharing is a real gap that would need either commissioned/licensed photography or a larger stock-photo budget to close properly, not a quick fix.
+- **In-memory filtering**: the recommendation engine and meal query endpoints filter/sort the recipe set in application memory rather than in SQL. At 110 recipes this is fast and simpler to reason about; it is not the approach that would be chosen for a catalog in the tens of thousands, but rewriting the filtering into SQL now would be premature for the current data size.
+- **SQLite on disk**: fine for local development and for platforms with a persistent disk (e.g. a Render/Fly.io volume, or a VM). If you deploy to a platform with an ephemeral filesystem (e.g. Vercel serverless functions, most PaaS "free tier" containers), the SQLite file will not persist across deploys or restarts — you'd want to point `DATABASE_URL` at a hosted Postgres/MySQL instance and swap Prisma's provider instead of trying to keep file-based SQLite there.
+- **No password reset / email verification flow** — registration and login work, but there's no email delivery integration.
+
+---
+
+## Key API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/auth/login` | Authenticate user & receive JWT token |
-| `GET` | `/api/meals` | Query recipes with filtering (`cuisine`, `mealType`, `maxCalories`, `minProtein`, `sortBy`) |
-| `POST` | `/api/ai/assistant` | Query deterministic AI Copilot with natural-language multi-constraint prompts |
-| `POST` | `/api/ai/cook-with-ingredients` | Rank database recipes by pantry ingredient match percentage |
-| `GET` | `/api/ai/quick-copilot-recommendation` | Real-time Dashboard recommendation based on remaining daily calories |
-| `GET` | `/api/meal-plans/current` | Retrieve active 7-day weekly meal plan |
-| `PUT` | `/api/meal-plans/swap-meal` | Replace a planned meal with a macro-compatible candidate |
-| `GET` | `/api/tracker/today` | Fetch today's consumed vs target macro analytics |
-| `GET` | `/api/grocery` | Fetch aggregated grocery checklist for the week |
+| `POST` | `/api/auth/register` / `/api/auth/login` | Create an account / authenticate, receive a JWT |
+| `GET` | `/api/meals` | Query recipes (`cuisine`, `mealType`, `maxCalories`, `minProtein`, `sortBy`) |
+| `POST` | `/api/ai/assistant` | Natural-language multi-constraint recommendation |
+| `POST` | `/api/ai/cook-with-ingredients` | Rank recipes by pantry ingredient match |
+| `GET` | `/api/ai/quick-copilot-recommendation` | Dashboard's next-meal suggestion based on remaining daily budget |
+| `GET` | `/api/meal-plans/current` | The active 7-day plan |
+| `PUT` | `/api/meal-plans/swap-meal` | Replace a planned meal with a macro-comparable alternative |
+| `GET` | `/api/tracker/today` | Today's consumed-vs-target macros |
+| `GET` | `/api/grocery` | This week's consolidated grocery checklist |
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 meal-finder/
 ├── backend/
-│   ├── config/              # Prisma DB client initialization
-│   ├── middleware/          # JWT authentication middleware
+│   ├── config/              # Prisma client, JWT secret loading
+│   ├── middleware/          # auth (required + optional), rate limiters
+│   ├── services/
+│   │   └── recommendationEngine.js  # shared constraint filtering + ranking
 │   ├── prisma/
-│   │   ├── recipes/         # Modular 110-recipe dataset (Indian, Med, Italian, etc.)
-│   │   ├── schema.prisma    # SQLite schema (User, Profile, Meal, Plan, Log)
-│   │   └── seed.js          # Database seed runner
-│   ├── routes/              # Express route controllers (ai, meals, tracker, etc.)
-│   └── server.js            # Express server entrypoint (Port 5050)
+│   │   ├── recipes/         # modular 110-recipe dataset
+│   │   ├── schema.prisma
+│   │   └── seed.js
+│   ├── routes/               # ai, auth, meals, mealPlans, tracker, grocery, favorites, profile
+│   ├── scripts/
+│   │   └── validateRecipes.js  # data-quality checks (`npm run validate-recipes`)
+│   ├── app.js                # Express app (routes, CORS, error handling)
+│   └── server.js             # entrypoint — loads env, starts the server
 ├── src/
-│   ├── api.js               # Frontend API client with JWT interceptor
-│   ├── components/          # Reusable UI components (MealCard, Modal, Navbar, Sidebar)
-│   ├── context/             # AuthContext for session management
-│   ├── pages/               # Application views (Dashboard, MealFinder, AI, Planner, Tracker)
-│   ├── App.jsx              # App root & route definitions
-│   └── index.css            # Tailwind CSS v4 design tokens
-├── package.json             # Root scripts and dependencies
-├── vite.config.js           # Vite development and bundle configuration
-└── README.md                # Project documentation
+│   ├── api.js                # frontend API client (JWT header injection)
+│   ├── components/           # MealCard, MealModal, MealSwapModal, ProtectedRoute, ...
+│   ├── context/               # AuthContext
+│   ├── pages/                 # Dashboard, MealFinder, AI Assistant, Planner, Tracker, ...
+│   ├── utils/
+│   │   └── imageFallback.js  # shared <img onError> fallback
+│   └── App.jsx
+├── .env.example
+├── backend/.env.example
+└── package.json
 ```
 
 ---
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License.
+MIT.

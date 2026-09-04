@@ -9,7 +9,9 @@
     "dev": "node --watch server.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.js",
+    "validate-recipes": "node scripts/validateRecipes.js",
+    "test": "node --test"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
@@ -17,6 +19,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0"
   },

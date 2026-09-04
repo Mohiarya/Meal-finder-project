@@ -1,10 +1,14 @@
 import express from "express";
 import prisma from "../config/prisma.js";
+import { optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// GET /api/meals
-router.get("/", async (req, res) => {
+// GET /api/meals — public browsing, but personalizes favorite-status for
+// whoever the *token* says is logged in. Never derives that from a query
+// param: an unauthenticated caller can no longer probe "did user X
+// favorite meal Y" by passing an arbitrary ?userId=.
+router.get("/", optionalAuth, async (req, res) => {
   try {
     const {
       search,
@@ -15,8 +19,8 @@ router.get("/", async (req, res) => {
       minProtein,
       maxPrepTime,
       sortBy,
-      userId,
     } = req.query;
+    const userId = req.user?.id;
 
     const where = {};
 
@@ -104,10 +108,10 @@ router.get("/", async (req, res) => {
 });
 
 // GET /api/meals/:id
-router.get("/:id", async (req, res) => {
+router.get("/:id", optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
+    const userId = req.user?.id;
 
     const meal = await prisma.meal.findUnique({
       where: { id },

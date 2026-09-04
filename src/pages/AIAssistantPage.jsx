@@ -22,6 +22,7 @@ import {
 import api from "../api";
 import { useAuth } from "../context/AuthContext";
 import MealModal from "../components/MealModal";
+import { onImageError } from "../utils/imageFallback";
 
 const AIAssistantPage = () => {
   const { profile } = useAuth();
@@ -332,6 +333,7 @@ const AIAssistantPage = () => {
                             <img
                               src={m.bestMatch.imageUrl}
                               alt={m.bestMatch.title}
+                              onError={onImageError}
                               className="w-full sm:w-44 h-36 rounded-2xl object-cover shrink-0"
                             />
 
@@ -424,6 +426,7 @@ const AIAssistantPage = () => {
                                   <img
                                     src={alt.imageUrl}
                                     alt={alt.title}
+                                    onError={onImageError}
                                     className="w-14 h-14 rounded-xl object-cover shrink-0"
                                   />
                                   <div className="flex-1">
@@ -612,6 +615,7 @@ const AIAssistantPage = () => {
                           <img
                             src={match.imageUrl}
                             alt={match.title}
+                            onError={onImageError}
                             className="w-16 h-16 rounded-2xl object-cover shrink-0"
                           />
                           <div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Sparkles, Flame, Dumbbell, Clock, ArrowRightLeft, Check } from "lucide-react";
 import api from "../api";
+import { onImageError } from "../utils/imageFallback";
 
 const MealSwapModal = ({ baseMeal, plannedMealId, onClose, onSwapCompleted }) => {
   const [filter, setFilter] = useState("");
@@ -85,6 +86,7 @@ const MealSwapModal = ({ baseMeal, plannedMealId, onClose, onSwapCompleted }) =>
             <img
               src={baseMeal.imageUrl}
               alt={baseMeal.title}
+              onError={onImageError}
               className="w-12 h-12 rounded-xl object-cover"
             />
             <div>
@@ -143,6 +145,7 @@ const MealSwapModal = ({ baseMeal, plannedMealId, onClose, onSwapCompleted }) =>
                     <img
                       src={alt.imageUrl}
                       alt={alt.title}
+                      onError={onImageError}
                       className="w-14 h-14 rounded-xl object-cover shrink-0"
                     />
                     <div>

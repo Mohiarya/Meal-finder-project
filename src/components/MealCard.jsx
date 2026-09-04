@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Heart, Clock, Flame, Dumbbell, Plus, Check } from "lucide-react";
 import api from "../api";
+import { onImageError } from "../utils/imageFallback";
 
 const MealCard = ({ meal, onSelectMeal, onPlanMeal, onLogMeal, isFavoriteInitial = false }) => {
   const [isFavorite, setIsFavorite] = useState(isFavoriteInitial || meal.isFavorite || false);
@@ -52,10 +53,7 @@ const MealCard = ({ meal, onSelectMeal, onPlanMeal, onLogMeal, isFavoriteInitial
           src={meal.imageUrl}
           alt={meal.title}
           loading="lazy"
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80";
-          }}
+          onError={onImageError}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/20 to-transparent" />

@@ -237,7 +237,7 @@ export const moreRecipes = [
   {
     title: "Grilled Chicken Pesto Penne with Cherry Tomatoes",
     description: "Al dente whole-wheat penne tossed with grilled herb chicken strips, aromatic basil pesto, sweet blistered cherry tomatoes, and shaved Parmesan.",
-    imageUrl: "https://images.unsplash.com/photo-1621996346565-e3d5d6281146?w=800&auto=format&fit=crop&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=800&auto=format&fit=crop&q=80",
     calories: 520,
     protein: 46,
     carbs: 54,

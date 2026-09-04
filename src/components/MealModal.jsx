@@ -14,6 +14,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import api from "../api";
+import { onImageError } from "../utils/imageFallback";
 
 const MealModal = ({ meal, onClose, onOpenSwap, onMealLogged, onMealPlanned }) => {
   const [servings, setServings] = useState(meal?.servings || 1);
@@ -94,6 +95,7 @@ const MealModal = ({ meal, onClose, onOpenSwap, onMealLogged, onMealPlanned }) =
           <img
             src={meal.imageUrl}
             alt={meal.title}
+            onError={onImageError}
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/30 to-transparent" />

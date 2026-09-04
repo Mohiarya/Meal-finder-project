@@ -17,6 +17,7 @@ import { useAuth } from "../context/AuthContext";
 import api from "../api";
 import MealModal from "../components/MealModal";
 import MealSwapModal from "../components/MealSwapModal";
+import { onImageError } from "../utils/imageFallback";
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
@@ -342,6 +343,7 @@ const Dashboard = () => {
             <img
               src={copilot.recommendation.imageUrl}
               alt={copilot.recommendation.title}
+              onError={onImageError}
               className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover shrink-0 border border-emerald-500/20"
             />
             <div className="space-y-1">
@@ -456,6 +458,7 @@ const Dashboard = () => {
                         <img
                           src={item.meal.imageUrl}
                           alt={item.meal.title}
+                          onError={onImageError}
                           className="w-full h-24 rounded-xl object-cover mb-2 group-hover:opacity-90 transition-opacity"
                         />
                         <h4 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">

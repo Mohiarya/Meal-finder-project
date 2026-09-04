@@ -784,7 +784,7 @@ export const indianMedItalianRecipes = [
   {
     title: "Italian Turkey Bolognese with Whole Wheat Penne",
     description: "Slow-simmered lean ground turkey ragu with San Marzano tomatoes, garlic, carrots, and oregano over al dente whole wheat penne pasta.",
-    imageUrl: "https://images.unsplash.com/photo-1621996346565-e3d5d6281146?w=800&auto=format&fit=crop&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1622973536968-3ead9e780960?w=800&auto=format&fit=crop&q=80",
     calories: 530,
     protein: 46,
     carbs: 62,

@@ -18,6 +18,7 @@ import api from "../api";
 import { useAuth } from "../context/AuthContext";
 import MealModal from "../components/MealModal";
 import MealSwapModal from "../components/MealSwapModal";
+import { onImageError } from "../utils/imageFallback";
 
 const PlannerPage = () => {
   const { profile } = useAuth();
@@ -252,6 +253,7 @@ const PlannerPage = () => {
                         <img
                           src={item.meal.imageUrl}
                           alt={item.meal.title}
+                          onError={onImageError}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         />
                         {item.isCompleted && (
@@ -377,6 +379,7 @@ const PlannerPage = () => {
                     <img
                       src={m.imageUrl}
                       alt={m.title}
+                      onError={onImageError}
                       className="w-10 h-10 rounded-lg object-cover"
                     />
                     <div>

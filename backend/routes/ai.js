@@ -1,6 +1,15 @@
 import express from "express";
 import prisma from "../config/prisma.js";
 import { authenticateToken } from "../middleware/auth.js";
+import { aiLimiter } from "../middleware/rateLimiters.js";
+import {
+  extractConstraints,
+  constraintsFromProfile,
+  filterWithFallback,
+  rankByPromptRelevance,
+  rankByRemainingBudget,
+  formatMeal,
+} from "../services/recommendationEngine.js";
 
 const router = express.Router();
 
@@ -43,149 +52,103 @@ async function callOpenAI({ systemPrompt, userMessage }) {
   }
 }
 
-// Multi-constraint Semantic Parser
-function extractConstraints(prompt, profile, todayTracker) {
-  const lower = prompt.toLowerCase();
+// OpenAI is only ever allowed to *phrase* an explanation of a meal the
+// deterministic engine already selected — never to pick the meal or
+// invent a nutrition number. This validates the shape/type of what came
+// back before it's ever shown to a user; anything malformed is treated
+// exactly like "OpenAI unavailable" (silently ignored, deterministic
+// text is kept) rather than rendered as-is.
+function isValidAiEnrichment(json) {
+  if (!json || typeof json !== "object") return false;
+  const { headline, reason, nutritionTip } = json;
+  if (typeof headline !== "string" || !headline.trim() || headline.length > 80) return false;
+  if (typeof reason !== "string" || !reason.trim() || reason.length > 400) return false;
+  if (nutritionTip !== undefined && (typeof nutritionTip !== "string" || nutritionTip.length > 300)) return false;
+  return true;
+}
 
-  // 1. Meal slot extraction (Hard constraint)
-  let requestedSlot = null;
-  if (lower.includes("breakfast") || lower.includes("morning")) {
-    requestedSlot = "breakfast";
-  } else if (lower.includes("dinner") || lower.includes("supper") || lower.includes("evening")) {
-    requestedSlot = "dinner";
-  } else if (lower.includes("lunch") || lower.includes("afternoon")) {
-    requestedSlot = "lunch";
-  } else if (lower.includes("snack") || lower.includes("dessert")) {
-    requestedSlot = "snack";
+async function loadAiContext(userId) {
+  const todayIso = new Date().toISOString().split("T")[0];
+  const [profile, logs, allMeals] = await Promise.all([
+    prisma.profile.findUnique({ where: { userId } }),
+    prisma.mealLog.findMany({ where: { userId, date: todayIso } }),
+    prisma.meal.findMany({ include: { ingredients: { include: { ingredient: true } } } }),
+  ]);
+
+  const consumedCalories = logs.reduce((sum, l) => sum + l.calories, 0);
+  const consumedProtein = logs.reduce((sum, l) => sum + l.protein, 0);
+  const targetCalories = profile?.dailyCalorieTarget || 2000;
+  const targetProtein = profile?.proteinTarget || 120;
+
+  const todayTracker = {
+    nutrition: {
+      calories: {
+        consumed: consumedCalories,
+        target: targetCalories,
+        remaining: Math.max(0, targetCalories - consumedCalories),
+      },
+      protein: {
+        consumed: consumedProtein,
+        target: targetProtein,
+        remaining: Math.max(0, targetProtein - consumedProtein),
+      },
+    },
+  };
+
+  return { profile, allMeals, todayTracker };
+}
+
+function buildExplanation(bestMatch, constraints, exactMatchFound, relaxedReason) {
+  if (!bestMatch) {
+    return {
+      headline: "No Recipes Found",
+      reason: "We could not find any recipes meeting your constraints in the database.",
+      nutritionTip: "Try relaxing some filters or browsing the full catalog in Meal Finder.",
+    };
   }
 
-  // 2. Calorie constraint extraction (Hard constraint)
-  let maxCalories = null;
-  let caloriePreference = "balanced";
+  const slotLabel = constraints.requestedSlot
+    ? constraints.requestedSlot.charAt(0).toUpperCase() + constraints.requestedSlot.slice(1)
+    : bestMatch.mealType.charAt(0).toUpperCase() + bestMatch.mealType.slice(1);
 
-  const numCalMatch = lower.match(/(?:under|within|below|have|less than|about|around|<)?\s*(\d{3,4})\s*(?:cal|calories|kcal)/i);
-  if (numCalMatch) {
-    maxCalories = parseInt(numCalMatch[1], 10);
-    caloriePreference = maxCalories <= 450 ? "low" : "budget";
-  } else if (
-    lower.includes("low-calorie") ||
-    lower.includes("low calorie") ||
-    lower.includes("light meal") ||
-    lower.includes("low cal")
-  ) {
-    // Explicit low-calorie request: apply sensible ceilings by meal type
-    caloriePreference = "low";
-    if (requestedSlot === "breakfast") maxCalories = 350;
-    else if (requestedSlot === "snack") maxCalories = 220;
-    else maxCalories = 450;
-  } else if (
-    lower.includes("remaining calorie") ||
-    lower.includes("calories left") ||
-    lower.includes("use my remaining")
-  ) {
-    const rem = todayTracker?.nutrition?.calories?.remaining;
-    maxCalories = rem && rem > 150 ? rem : profile?.dailyCalorieTarget ? Math.round(profile.dailyCalorieTarget / 3) : 500;
+  if (!exactMatchFound) {
+    return {
+      headline: "Closest Available Match",
+      reason: relaxedReason || `Closest match meeting your dietary criteria at ${bestMatch.calories} kcal and ${bestMatch.protein}g protein.`,
+      nutritionTip: "All ingredients and nutrition values are sourced directly from our curated recipe database.",
+    };
   }
 
-  // 3. Protein constraint extraction (Hard constraint)
-  let minProtein = null;
-  let proteinPreference = "standard";
-
-  const numProtMatch = lower.match(/(?:at least|need|over|min|minimum|>)?\s*(\d{2,3})\s*g\s*(?:of\s*)?protein/i);
-  if (numProtMatch) {
-    minProtein = parseInt(numProtMatch[1], 10);
-    proteinPreference = "high";
-  } else if (
-    lower.includes("high-protein") ||
-    lower.includes("high protein") ||
-    lower.includes("hit my protein") ||
-    lower.includes("protein target")
-  ) {
-    proteinPreference = "high";
-    if (requestedSlot === "breakfast") minProtein = 20;
-    else if (requestedSlot === "snack") minProtein = 12;
-    else minProtein = 30; // 30g+ is standard high-protein threshold for a single lunch/dinner
+  if (constraints.caloriePreference === "low" && constraints.proteinPreference === "high") {
+    return {
+      headline: `Top Low-Calorie, High-Protein ${slotLabel}`,
+      reason: `Delivers ${bestMatch.protein}g protein at only ${bestMatch.calories} kcal, achieving an outstanding protein-to-calorie ratio without excess carbs or fat.`,
+      nutritionTip: "Rich in lean amino acids while strictly respecting your calorie ceiling.",
+    };
   }
-
-  // 4. Dietary preferences (Hard constraint)
-  let diet = null;
-  if (lower.includes("vegan") || profile?.dietPreference === "vegan") {
-    diet = "vegan";
-  } else if (lower.includes("vegetarian") || lower.includes("veggie") || profile?.dietPreference === "vegetarian") {
-    diet = "vegetarian";
-  } else if (lower.includes("pescatarian") || profile?.dietPreference === "pescatarian") {
-    diet = "pescatarian";
-  } else if (lower.includes("keto") || lower.includes("low carb") || profile?.dietPreference === "keto") {
-    diet = "keto";
+  if (constraints.diet === "vegetarian") {
+    return {
+      headline: `Ideal Vegetarian ${slotLabel}`,
+      reason: `100% vegetarian, providing ${bestMatch.protein}g wholesome plant protein at ${bestMatch.calories} kcal.`,
+      nutritionTip: `Packed with nutrient-dense ${bestMatch.cuisine} ingredients and zero meat.`,
+    };
   }
-
-  // 5. Explicit Cuisine constraint
-  const cuisinesList = [
-    "indian",
-    "mediterranean",
-    "italian",
-    "mexican",
-    "american",
-    "japanese",
-    "korean",
-    "thai",
-    "middle eastern",
-    "asian",
-  ];
-  let requestedCuisine = null;
-  for (const c of cuisinesList) {
-    if (lower.includes(c)) {
-      requestedCuisine = c;
-      break;
-    }
+  if (constraints.diet === "vegan") {
+    return {
+      headline: `Ideal 100% Plant-Based ${slotLabel}`,
+      reason: `Delivers ${bestMatch.protein}g plant protein at ${bestMatch.calories} kcal with zero animal products.`,
+      nutritionTip: "Clean, wholesome, and completely vegan-certified.",
+    };
   }
-
-  // 6. Time constraints
-  let maxTimeMinutes = null;
-  const timeMatch = lower.match(/(?:under|in|<|less than)?\s*(\d{1,2})\s*(?:min|mins|minutes)/i);
-  if (timeMatch) {
-    maxTimeMinutes = parseInt(timeMatch[1], 10);
-  } else if (lower.includes("quick") || lower.includes("fast") || lower.includes("speedy")) {
-    maxTimeMinutes = 20;
-  }
-
-  // 7. Allergens & Disliked items (Strict Exclusion)
-  const promptAllergens = [];
-  const allergyMatch = lower.match(/(?:allergic to|no|without|avoid)\s+([a-z\s,]+?)(?:\.|$|find|and|under|with)/i);
-  if (allergyMatch) {
-    const items = allergyMatch[1].split(/,|\band\b/).map((s) => s.trim()).filter(Boolean);
-    promptAllergens.push(...items);
-  }
-
-  let profileAllergies = [];
-  try {
-    profileAllergies = JSON.parse(profile?.allergies || "[]");
-  } catch {}
-
-  let profileDisliked = [];
-  try {
-    profileDisliked = JSON.parse(profile?.dislikedFoods || "[]");
-  } catch {}
-
-  const excludedTerms = [
-    ...new Set([...promptAllergens, ...profileAllergies, ...profileDisliked].map((s) => s.toLowerCase().trim())),
-  ].filter((s) => s.length >= 3);
-
   return {
-    requestedSlot,
-    maxCalories,
-    caloriePreference,
-    minProtein,
-    proteinPreference,
-    diet,
-    requestedCuisine,
-    maxTimeMinutes,
-    excludedTerms,
+    headline: `Best Grounded Match for ${slotLabel}`,
+    reason: `Selected from our database: provides ${bestMatch.protein}g protein at ${bestMatch.calories} kcal, fitting your current request.`,
+    nutritionTip: `Takes only ${bestMatch.prepTimeMinutes + bestMatch.cookTimeMinutes} minutes to prepare.`,
   };
 }
 
 // POST /api/ai/assistant
-router.post("/assistant", authenticateToken, async (req, res) => {
+router.post("/assistant", authenticateToken, aiLimiter, async (req, res) => {
   try {
     const { prompt } = req.body;
     const userId = req.user.id;
@@ -194,248 +157,23 @@ router.post("/assistant", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Prompt is required" });
     }
 
-    const todayIso = new Date().toISOString().split("T")[0];
+    const { profile, allMeals, todayTracker } = await loadAiContext(userId);
 
-    // Fetch user context & today's tracker
-    const [profile, logs, allMeals] = await Promise.all([
-      prisma.profile.findUnique({ where: { userId } }),
-      prisma.mealLog.findMany({ where: { userId, date: todayIso } }),
-      prisma.meal.findMany({
-        include: { ingredients: { include: { ingredient: true } } },
-      }),
-    ]);
-
-    const consumedCalories = logs.reduce((sum, l) => sum + l.calories, 0);
-    const consumedProtein = logs.reduce((sum, l) => sum + l.protein, 0);
-    const targetCalories = profile?.dailyCalorieTarget || 2000;
-    const targetProtein = profile?.proteinTarget || 120;
-
-    const todayTracker = {
-      nutrition: {
-        calories: {
-          consumed: consumedCalories,
-          target: targetCalories,
-          remaining: Math.max(0, targetCalories - consumedCalories),
-        },
-        protein: {
-          consumed: consumedProtein,
-          target: targetProtein,
-          remaining: Math.max(0, targetProtein - consumedProtein),
-        },
-      },
-    };
-
-    // 1. Extract natural-language constraints
+    // Constraints are derived fresh from THIS prompt + persistent profile
+    // only — no prior request's state is ever read here, so a follow-up
+    // prompt can never inherit a previous one's constraints.
     const constraints = extractConstraints(prompt, profile, todayTracker);
+    const { candidates, exactMatchFound, relaxedReason } = filterWithFallback(allMeals, constraints);
+    const ranked = rankByPromptRelevance(candidates, constraints);
 
-    // 2. HARD FILTERING: Never violate hard constraints
-    const matchesHardConstraints = (meal, options = {}) => {
-      const tags = JSON.parse(meal.dietaryTags || "[]");
-      const ingredients = meal.ingredients.map((i) => i.ingredient.name.toLowerCase());
-      const titleLower = meal.title.toLowerCase();
+    const bestMealRaw = ranked[0] || null;
+    const alternativesRaw = ranked.slice(1, 4);
+    const bestMatch = bestMealRaw ? formatMeal(bestMealRaw, constraints) : null;
+    const recommendations = alternativesRaw.map((m) => formatMeal(m, constraints));
 
-      // Rule A: Allergens & Disliked Foods (MUST EXCLUDE)
-      for (const excluded of constraints.excludedTerms) {
-        if (titleLower.includes(excluded)) return false;
-        if (ingredients.some((ing) => ing.includes(excluded))) return false;
-      }
-
-      // Rule B: Meal Type Integrity (MUST RESPECT)
-      if (constraints.requestedSlot) {
-        const slot = constraints.requestedSlot;
-        if (slot === "breakfast" && meal.mealType !== "breakfast") return false;
-        if (slot === "snack" && meal.mealType !== "snack") return false;
-        if (slot === "dinner") {
-          // Never return breakfast or snack for dinner!
-          if (meal.mealType === "breakfast" || meal.mealType === "snack") return false;
-        }
-        if (slot === "lunch") {
-          // Never return breakfast or snack for lunch!
-          if (meal.mealType === "breakfast" || meal.mealType === "snack") return false;
-        }
-      }
-
-      // Rule C: Dietary Restriction (MUST RESPECT)
-      if (constraints.diet === "vegan" && !tags.includes("Vegan")) return false;
-      if (constraints.diet === "vegetarian" && !(tags.includes("Vegetarian") || tags.includes("Vegan"))) return false;
-      if (constraints.diet === "pescatarian" && !(tags.includes("Pescatarian") || tags.includes("Vegetarian") || tags.includes("Vegan"))) return false;
-      if (constraints.diet === "keto" && !(tags.includes("Keto") || tags.includes("Low-Carb"))) return false;
-
-      // Rule D: Explicit Cuisine (If specified)
-      if (constraints.requestedCuisine && !options.relaxCuisine) {
-        if (!meal.cuisine.toLowerCase().includes(constraints.requestedCuisine.toLowerCase())) {
-          return false;
-        }
-      }
-
-      // Rule E: Calorie Ceiling (HARD CONSTRAINT)
-      if (constraints.maxCalories && !options.relaxCalories) {
-        if (meal.calories > constraints.maxCalories) return false;
-      }
-
-      // Rule F: Protein Floor (HARD CONSTRAINT)
-      if (constraints.minProtein && !options.relaxProtein) {
-        if (meal.protein < constraints.minProtein) return false;
-      }
-
-      // Rule G: Max Prep Time (If specified)
-      if (constraints.maxTimeMinutes && !options.relaxTime) {
-        if (meal.prepTimeMinutes + meal.cookTimeMinutes > constraints.maxTimeMinutes + 5) {
-          return false;
-        }
-      }
-
-      return true;
-    };
-
-    // Filter strictly
-    let exactCandidates = allMeals.filter((m) => matchesHardConstraints(m));
-    let exactMatchFound = true;
-    let relaxedReason = null;
-    let candidates = exactCandidates;
-
-    // 3. NO-MATCH FALLBACK: If strict constraints yielded 0, gracefully relax softest constraint
-    if (candidates.length === 0) {
-      exactMatchFound = false;
-
-      // Try relaxing cuisine first if specified
-      if (constraints.requestedCuisine) {
-        candidates = allMeals.filter((m) => matchesHardConstraints(m, { relaxCuisine: true }));
-        if (candidates.length > 0) {
-          relaxedReason = `No exact ${constraints.requestedCuisine} recipes matched all limits. Showing closest dishes from other cuisines.`;
-        }
-      }
-
-      // If still 0, try relaxing max calories slightly (+15%)
-      if (candidates.length === 0 && constraints.maxCalories) {
-        const expandedCal = Math.round(constraints.maxCalories * 1.15);
-        candidates = allMeals.filter((m) => {
-          if (m.calories > expandedCal) return false;
-          return matchesHardConstraints(m, { relaxCalories: true, relaxProtein: true });
-        });
-        if (candidates.length > 0) {
-          relaxedReason = `No dishes found under ${constraints.maxCalories} kcal meeting all criteria. Showing closest options at ${expandedCal} kcal.`;
-        }
-      }
-
-      // If still 0, keep dietary & slot strict, but show closest valid dishes
-      if (candidates.length === 0) {
-        candidates = allMeals.filter((m) => {
-          const tags = JSON.parse(m.dietaryTags || "[]");
-          if (constraints.diet === "vegan" && !tags.includes("Vegan")) return false;
-          if (constraints.diet === "vegetarian" && !(tags.includes("Vegetarian") || tags.includes("Vegan"))) return false;
-          if (constraints.requestedSlot && constraints.requestedSlot === "dinner" && (m.mealType === "breakfast" || m.mealType === "snack")) return false;
-          return true;
-        });
-        relaxedReason = "No exact recipes matched all strict parameters. Showing the closest nutritious alternatives.";
-      }
-    }
-
-    // 4. DETERMINISTIC RANKING: Score candidates based on query intent
-    candidates.sort((a, b) => {
-      let scoreA = 0;
-      let scoreB = 0;
-
-      // Priority 1: High Protein Density (protein per 100 kcal)
-      // This ensures a 380 kcal / 42g protein dish beats a 580 kcal / 45g protein dish for "low calorie high protein"!
-      const densityA = (a.protein / (a.calories / 100));
-      const densityB = (b.protein / (b.calories / 100));
-
-      if (constraints.proteinPreference === "high" || constraints.caloriePreference === "low") {
-        scoreA += densityA * 15;
-        scoreB += densityB * 15;
-      }
-
-      // Priority 2: Calorie fit
-      if (constraints.maxCalories) {
-        // Reward staying well under or close to maxCalories without exceeding it
-        scoreA += (constraints.maxCalories - a.calories) * 0.05;
-        scoreB += (constraints.maxCalories - b.calories) * 0.05;
-      }
-
-      // Priority 3: Exact Slot Match bonus
-      if (constraints.requestedSlot && a.mealType === constraints.requestedSlot) scoreA += 25;
-      if (constraints.requestedSlot && b.mealType === constraints.requestedSlot) scoreB += 25;
-
-      // Priority 4: Cuisine Match bonus
-      if (constraints.requestedCuisine) {
-        if (a.cuisine.toLowerCase().includes(constraints.requestedCuisine.toLowerCase())) scoreA += 30;
-        if (b.cuisine.toLowerCase().includes(constraints.requestedCuisine.toLowerCase())) scoreB += 30;
-      }
-
-      // Priority 5: Raw protein bonus
-      scoreA += a.protein * 0.5;
-      scoreB += b.protein * 0.5;
-
-      return scoreB - scoreA;
-    });
-
-    const formatMeal = (m) => ({
-      id: m.id,
-      title: m.title,
-      description: m.description,
-      imageUrl: m.imageUrl,
-      calories: m.calories,
-      protein: m.protein,
-      carbs: m.carbs,
-      fat: m.fat,
-      prepTimeMinutes: m.prepTimeMinutes,
-      cookTimeMinutes: m.cookTimeMinutes,
-      cuisine: m.cuisine,
-      mealType: m.mealType,
-      dietaryTags: JSON.parse(m.dietaryTags || "[]"),
-      instructions: JSON.parse(m.instructions || "[]"),
-      ingredients: (m.ingredients || []).map((i) => ({
-        name: i.ingredient?.name || i.name,
-        amount: i.amount,
-        unit: i.unit,
-        category: i.ingredient?.category || "Pantry",
-      })),
-      calorieDifference: constraints.maxCalories ? m.calories - constraints.maxCalories : 0,
-      proteinDifference: constraints.minProtein ? Math.round((m.protein - constraints.minProtein) * 10) / 10 : 0,
-    });
-
-    const bestMealRaw = candidates[0] || null;
-    const alternativesRaw = candidates.slice(1, 4);
-
-    const bestMatch = bestMealRaw ? formatMeal(bestMealRaw) : null;
-    const recommendations = alternativesRaw.map(formatMeal);
-
-    // 5. GENERATE PERSONALIZED EXPLANATION GROUNDED IN DATABASE RECORD
-    let headline = "";
-    let reason = "";
-    let nutritionTip = "";
+    let { headline, reason, nutritionTip } = buildExplanation(bestMatch, constraints, exactMatchFound, relaxedReason);
 
     if (bestMatch) {
-      const slotLabel = constraints.requestedSlot
-        ? constraints.requestedSlot.charAt(0).toUpperCase() + constraints.requestedSlot.slice(1)
-        : bestMatch.mealType.charAt(0).toUpperCase() + bestMatch.mealType.slice(1);
-
-      if (exactMatchFound) {
-        if (constraints.caloriePreference === "low" && constraints.proteinPreference === "high") {
-          headline = `Top Low-Calorie, High-Protein ${slotLabel}`;
-          reason = `Delivers ${bestMatch.protein}g protein at only ${bestMatch.calories} kcal, achieving an outstanding protein-to-calorie ratio without excess carbs or fat.`;
-          nutritionTip = `Rich in lean amino acids while strictly respecting your calorie ceiling.`;
-        } else if (constraints.diet === "vegetarian") {
-          headline = `Ideal Vegetarian ${slotLabel}`;
-          reason = `100% vegetarian, providing ${bestMatch.protein}g wholesome plant protein at ${bestMatch.calories} kcal.`;
-          nutritionTip = `Packed with nutrient-dense ${bestMatch.cuisine} ingredients and zero meat.`;
-        } else if (constraints.diet === "vegan") {
-          headline = `Ideal 100% Plant-Based ${slotLabel}`;
-          reason = `Delivers ${bestMatch.protein}g plant protein at ${bestMatch.calories} kcal with zero animal products.`;
-          nutritionTip = `Clean, wholesome, and completely vegan-certified.`;
-        } else {
-          headline = `Best Grounded Match for ${slotLabel}`;
-          reason = `Selected from our database: provides ${bestMatch.protein}g protein at ${bestMatch.calories} kcal, fitting your current request.`;
-          nutritionTip = `Takes only ${bestMatch.prepTimeMinutes + bestMatch.cookTimeMinutes} minutes to prepare.`;
-        }
-      } else {
-        headline = "Closest Available Match";
-        reason = relaxedReason || `Closest match meeting your dietary criteria at ${bestMatch.calories} kcal and ${bestMatch.protein}g protein.`;
-        nutritionTip = "All ingredients and nutrition values are sourced directly from our curated recipe database.";
-      }
-
-      // Try OpenAI for conversational enrichment if configured
       const systemPrompt = `You are a certified nutrition expert AI Copilot for MealFinder.
 User Query: "${prompt}"
 Verified Database Meal Selected: Title="${bestMatch.title}", Calories=${bestMatch.calories}, Protein=${bestMatch.protein}g, Carbs=${bestMatch.carbs}g, Fat=${bestMatch.fat}g, Cuisine="${bestMatch.cuisine}", MealType="${bestMatch.mealType}".
@@ -452,15 +190,13 @@ Return JSON:
         userMessage: `Explain why ${bestMatch.title} is the best match for "${prompt}".`,
       });
 
-      if (aiJson?.headline && aiJson?.reason) {
+      if (isValidAiEnrichment(aiJson)) {
         headline = aiJson.headline;
         reason = aiJson.reason;
         if (aiJson.nutritionTip) nutritionTip = aiJson.nutritionTip;
       }
-    } else {
-      headline = "No Recipes Found";
-      reason = "We could not find any recipes meeting your constraints in the database.";
-      nutritionTip = "Try relaxing some filters or browsing the full catalog in Meal Finder.";
+      // else: malformed or absent AI response — the deterministic
+      // headline/reason/nutritionTip computed above are used as-is.
     }
 
     res.json({
@@ -489,7 +225,7 @@ Return JSON:
 });
 
 // POST /api/ai/cook-with-ingredients
-router.post("/cook-with-ingredients", authenticateToken, async (req, res) => {
+router.post("/cook-with-ingredients", authenticateToken, aiLimiter, async (req, res) => {
   try {
     const { ingredients } = req.body;
 
@@ -499,13 +235,8 @@ router.post("/cook-with-ingredients", authenticateToken, async (req, res) => {
 
     const normalizedInputs = ingredients.map((i) => i.toLowerCase().trim()).filter(Boolean);
 
-    // Fetch all meals with ingredients from the expanded database
     const meals = await prisma.meal.findMany({
-      include: {
-        ingredients: {
-          include: { ingredient: true },
-        },
-      },
+      include: { ingredients: { include: { ingredient: true } } },
     });
 
     const scoredMeals = meals.map((meal) => {
@@ -554,9 +285,7 @@ router.post("/cook-with-ingredients", authenticateToken, async (req, res) => {
       };
     });
 
-    // Sort by highest match count and percentage
     scoredMeals.sort((a, b) => b.matchCount - a.matchCount || b.matchPercentage - a.matchPercentage);
-
     const topMatches = scoredMeals.filter((m) => m.matchCount > 0).slice(0, 8);
 
     res.json({
@@ -570,7 +299,14 @@ router.post("/cook-with-ingredients", authenticateToken, async (req, res) => {
   }
 });
 
-// GET /api/ai/quick-copilot-recommendation (For Dashboard Brain)
+// GET /api/ai/quick-copilot-recommendation (Dashboard "what's next")
+// Uses the SAME hard-constraint filter as /assistant (diet + allergens +
+// meal-slot are never violated here either — this used to skip allergen
+// filtering entirely, a real gap fixed by sharing recommendationEngine.js
+// instead of re-implementing filtering). Ranking is deliberately
+// different (closest-to-remaining-budget, not protein-density scoring)
+// because there's no explicit request to rank against — see
+// rankByRemainingBudget's own comment for why that's intentional.
 router.get("/quick-copilot-recommendation", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -579,9 +315,7 @@ router.get("/quick-copilot-recommendation", authenticateToken, async (req, res) 
     const [profile, logs, allMeals] = await Promise.all([
       prisma.profile.findUnique({ where: { userId } }),
       prisma.mealLog.findMany({ where: { userId, date: todayIso } }),
-      prisma.meal.findMany({
-        include: { ingredients: { include: { ingredient: true } } },
-      }),
+      prisma.meal.findMany({ include: { ingredients: { include: { ingredient: true } } } }),
     ]);
 
     const consumedCalories = logs.reduce((sum, l) => sum + l.calories, 0);
@@ -591,7 +325,6 @@ router.get("/quick-copilot-recommendation", authenticateToken, async (req, res) 
     const remainingCalories = Math.max(0, targetCalories - consumedCalories);
     const remainingProtein = Math.max(0, targetProtein - consumedProtein);
 
-    // Determine next meal slot
     const loggedSlots = new Set(logs.map((l) => l.slot.toLowerCase()));
     let nextSlot = "dinner";
     if (!loggedSlots.has("breakfast")) nextSlot = "breakfast";
@@ -599,54 +332,18 @@ router.get("/quick-copilot-recommendation", authenticateToken, async (req, res) 
     else if (!loggedSlots.has("dinner")) nextSlot = "dinner";
     else nextSlot = "snack";
 
-    // Filter meals matching profile diet & next slot
-    let candidates = allMeals.filter((m) => {
-      const tags = JSON.parse(m.dietaryTags || "[]");
-      if (profile?.dietPreference === "vegetarian" && !(tags.includes("Vegetarian") || tags.includes("Vegan"))) return false;
-      if (profile?.dietPreference === "vegan" && !tags.includes("Vegan")) return false;
-      if (profile?.dietPreference === "keto" && !tags.includes("Keto")) return false;
-      if (nextSlot === "breakfast" && m.mealType !== "breakfast") return false;
-      if (nextSlot === "lunch" && m.mealType !== "lunch" && m.mealType !== "dinner") return false;
-      if (nextSlot === "dinner" && (m.mealType === "breakfast" || m.mealType === "snack")) return false;
-      return true;
-    });
-
+    const constraints = constraintsFromProfile(profile, { requestedSlot: nextSlot });
+    let { candidates } = filterWithFallback(allMeals, constraints);
     if (candidates.length === 0) candidates = allMeals;
 
-    // Pick best match that fits remaining calories or prioritizes protein density
-    candidates.sort((a, b) => {
-      const diffA = Math.abs(a.calories - remainingCalories);
-      const diffB = Math.abs(b.calories - remainingCalories);
-      return diffA - diffB || b.protein - a.protein;
-    });
-
-    const chosen = candidates[0];
+    const ranked = rankByRemainingBudget(candidates, remainingCalories);
+    const chosen = ranked[0];
 
     res.json({
       remainingCalories,
       remainingProtein,
       nextSlot,
-      recommendation: {
-        id: chosen.id,
-        title: chosen.title,
-        description: chosen.description,
-        imageUrl: chosen.imageUrl,
-        calories: chosen.calories,
-        protein: chosen.protein,
-        carbs: chosen.carbs,
-        fat: chosen.fat,
-        prepTimeMinutes: chosen.prepTimeMinutes,
-        cookTimeMinutes: chosen.cookTimeMinutes,
-        cuisine: chosen.cuisine,
-        mealType: chosen.mealType,
-        dietaryTags: JSON.parse(chosen.dietaryTags || "[]"),
-        instructions: JSON.parse(chosen.instructions || "[]"),
-        ingredients: chosen.ingredients.map((i) => ({
-          name: i.ingredient?.name,
-          amount: i.amount,
-          unit: i.unit,
-        })),
-      },
+      recommendation: formatMeal(chosen, {}),
     });
   } catch (error) {
     console.error("Quick copilot error:", error);
