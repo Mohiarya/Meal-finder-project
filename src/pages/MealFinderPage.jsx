@@ -120,7 +120,7 @@ const MealFinderPage = () => {
             <span>Discover Gourmet Nutrition</span>
           </h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Explore chef-curated meals with verified calories, protein, and micro-nutrients.
+            Explore curated meals with calculated calories, protein, and micro-nutrients.
           </p>
         </div>
 
@@ -263,7 +263,7 @@ const MealFinderPage = () => {
       {/* Results Meta */}
       <div className="flex items-center justify-between px-1">
         <span className="text-xs text-zinc-400 font-medium">
-          Showing <span className="text-white font-bold">{Math.min(visibleCount, meals.length)}</span> of <span className="text-emerald-400 font-bold">{meals.length}</span> chef-verified recipes
+          Showing <span className="text-white font-bold">{Math.min(visibleCount, meals.length)}</span> of <span className="text-emerald-400 font-bold">{meals.length}</span> curated recipes
         </span>
         {(search || cuisine !== "All" || mealType !== "All" || dietaryTag !== "All" || maxCalories !== 800 || minProtein !== 0 || sortBy !== "relevance") && (
           <button

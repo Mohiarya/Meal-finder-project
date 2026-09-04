@@ -40,7 +40,7 @@ const AIAssistantPage = () => {
       role: "assistant",
       headline: "AI Nutrition Copilot Ready",
       reason:
-        "Welcome! I analyze your live daily calorie budget, protein goals, and dietary preferences to recommend exact chef-verified meals from our database.",
+        "Welcome! I analyze your live daily calorie budget, protein goals, and dietary preferences to recommend exact meals from our database.",
       nutritionTip: "Ask questions with multiple constraints—like calories, meal slots, or ingredients—and I'll filter our verified database.",
       bestMatch: null,
       recommendations: [],
