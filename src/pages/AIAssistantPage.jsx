@@ -326,6 +326,12 @@ const AIAssistantPage = () => {
                               <span className="text-emerald-400 font-bold">
                                 {m.bestMatch.cuisine}
                               </span>
+                              {m.bestMatch.source && m.bestMatch.source !== "local" && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-amber-300 font-semibold">Web recipe</span>
+                                </>
+                              )}
                             </div>
                           </div>
 
@@ -388,23 +394,38 @@ const AIAssistantPage = () => {
                             </button>
 
                             <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleAddToPlan(m.bestMatch, m.bestMatch.mealType || "dinner")}
-                                className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-emerald-600 hover:text-white text-zinc-200 text-xs font-bold flex items-center gap-1.5 transition-colors border border-zinc-700"
-                              >
-                                <Calendar className="w-3.5 h-3.5" />
-                                <span>Add to {m.bestMatch.mealType || "Dinner"}</span>
-                              </button>
+                              {m.bestMatch.source && m.bestMatch.source !== "local" ? (
+                                m.bestMatch.sourceUrl && (
+                                  <a
+                                    href={m.bestMatch.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 text-xs font-bold transition-colors"
+                                  >
+                                    View Original Recipe ↗
+                                  </a>
+                                )
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddToPlan(m.bestMatch, m.bestMatch.mealType || "dinner")}
+                                    className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-emerald-600 hover:text-white text-zinc-200 text-xs font-bold flex items-center gap-1.5 transition-colors border border-zinc-700"
+                                  >
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    <span>Add to {m.bestMatch.mealType || "Dinner"}</span>
+                                  </button>
 
-                              <button
-                                type="button"
-                                onClick={() => handleLogMeal(m.bestMatch, m.bestMatch.mealType || "dinner")}
-                                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md shadow-emerald-500/20"
-                              >
-                                <Flame className="w-3.5 h-3.5" />
-                                <span>Log as Eaten</span>
-                              </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleLogMeal(m.bestMatch, m.bestMatch.mealType || "dinner")}
+                                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md shadow-emerald-500/20"
+                                  >
+                                    <Flame className="w-3.5 h-3.5" />
+                                    <span>Log as Eaten</span>
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -452,13 +473,17 @@ const AIAssistantPage = () => {
                                   >
                                     View
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAddToPlan(alt, alt.mealType || "dinner")}
-                                    className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium"
-                                  >
-                                    + Add to Plan
-                                  </button>
+                                  {alt.source && alt.source !== "local" ? (
+                                    <span className="text-[10px] text-amber-300 font-semibold">Web recipe</span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddToPlan(alt, alt.mealType || "dinner")}
+                                      className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium"
+                                    >
+                                      + Add to Plan
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             ))}

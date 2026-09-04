@@ -10,6 +10,7 @@ import {
   rankByRemainingBudget,
   formatMeal,
 } from "../services/recommendationEngine.js";
+import { searchRecipes } from "../services/recipeProvider.js";
 
 const router = express.Router();
 
@@ -98,18 +99,26 @@ async function loadAiContext(userId) {
   return { profile, allMeals, todayTracker };
 }
 
-function buildExplanation(bestMatch, constraints, exactMatchFound, relaxedReason) {
+function buildExplanation(bestMatch, constraints, exactMatchFound, relaxedReason, usedExternal) {
   if (!bestMatch) {
     return {
-      headline: "No Recipes Found",
-      reason: "We could not find any recipes meeting your constraints in the database.",
-      nutritionTip: "Try relaxing some filters or browsing the full catalog in Meal Finder.",
+      headline: "No Matching Recipe Found",
+      reason: "Nothing in our local catalog or the external recipe provider matched that request — rather than guess, here's an honest \"no match\" instead of an unrelated suggestion.",
+      nutritionTip: "Try a different dish, or browse the full catalog in Meal Finder.",
     };
   }
 
   const slotLabel = constraints.requestedSlot
     ? constraints.requestedSlot.charAt(0).toUpperCase() + constraints.requestedSlot.slice(1)
     : bestMatch.mealType.charAt(0).toUpperCase() + bestMatch.mealType.slice(1);
+
+  if (usedExternal && bestMatch.source !== "local") {
+    return {
+      headline: `Found via Recipe Search — ${slotLabel}`,
+      reason: `Our local catalog didn't have a close match, so this came from an external recipe provider: ${bestMatch.protein}g protein at ${bestMatch.calories} kcal.`,
+      nutritionTip: bestMatch.sourceUrl ? `Nutrition is provider-reported, not independently verified — full recipe at the source link.` : "Nutrition is provider-reported, not independently verified.",
+    };
+  }
 
   if (!exactMatchFound) {
     return {
@@ -163,21 +172,32 @@ router.post("/assistant", authenticateToken, aiLimiter, async (req, res) => {
     // only — no prior request's state is ever read here, so a follow-up
     // prompt can never inherit a previous one's constraints.
     const constraints = extractConstraints(prompt, profile, todayTracker);
-    const { candidates, exactMatchFound, relaxedReason } = filterWithFallback(allMeals, constraints);
+
+    // Local catalog first; the external provider is only ever queried
+    // when local coverage is thin, and its results pass through the
+    // exact same hard-constraint gate before they can appear at all —
+    // see recipeProvider.searchRecipes for the full local→external flow.
+    const { results: candidates, exactMatchFound, relaxedReason, usedExternal, noMatch } = await searchRecipes({
+      rawQuery: prompt,
+      constraints,
+      allMeals,
+      minResults: 4,
+    });
     const ranked = rankByPromptRelevance(candidates, constraints);
 
-    const bestMealRaw = ranked[0] || null;
+    const bestMealRaw = noMatch ? null : ranked[0] || null;
     const alternativesRaw = ranked.slice(1, 4);
     const bestMatch = bestMealRaw ? formatMeal(bestMealRaw, constraints) : null;
     const recommendations = alternativesRaw.map((m) => formatMeal(m, constraints));
 
-    let { headline, reason, nutritionTip } = buildExplanation(bestMatch, constraints, exactMatchFound, relaxedReason);
+    let { headline, reason, nutritionTip } = buildExplanation(bestMatch, constraints, exactMatchFound, relaxedReason, usedExternal);
 
     if (bestMatch) {
-      const systemPrompt = `You are a certified nutrition expert AI Copilot for MealFinder.
+      const sourceLabel = bestMatch.source === "local" ? "our curated local database" : "an external recipe provider (Spoonacular)";
+      const systemPrompt = `You are a nutrition copilot for MealFinder.
 User Query: "${prompt}"
-Verified Database Meal Selected: Title="${bestMatch.title}", Calories=${bestMatch.calories}, Protein=${bestMatch.protein}g, Carbs=${bestMatch.carbs}g, Fat=${bestMatch.fat}g, Cuisine="${bestMatch.cuisine}", MealType="${bestMatch.mealType}".
-CRITICAL RULE: DO NOT INVENT ANY CALORIES OR MACROS. Only use the exact numbers given.
+Meal Selected (from ${sourceLabel}): Title="${bestMatch.title}", Calories=${bestMatch.calories}, Protein=${bestMatch.protein}g, Carbs=${bestMatch.carbs}g, Fat=${bestMatch.fat}g, Cuisine="${bestMatch.cuisine}", MealType="${bestMatch.mealType}".
+CRITICAL RULE: DO NOT INVENT ANY CALORIES OR MACROS, and DO NOT INVENT A DIFFERENT RECIPE. Only use the exact numbers given, for this exact meal.
 Return JSON:
 {
   "headline": "Punchy 3-5 word headline",
@@ -214,6 +234,8 @@ Return JSON:
       headline,
       reason,
       nutritionTip,
+      usedExternal,
+      noMatch,
       bestMatch,
       recommendations,
       exactMatch: exactMatchFound,

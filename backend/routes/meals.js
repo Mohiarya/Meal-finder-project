@@ -1,14 +1,22 @@
 import express from "express";
 import prisma from "../config/prisma.js";
 import { optionalAuth } from "../middleware/auth.js";
+import { recipeSearchLimiter } from "../middleware/rateLimiters.js";
+import { searchRecipes } from "../services/recipeProvider.js";
 
 const router = express.Router();
+
+// Below this many local matches for a genuine free-text search, try the
+// external recipe provider too. Filter dropdowns alone (cuisine/mealType/
+// calorie/protein with no search text) never trigger it — only a named
+// dish search that the local 110-recipe catalog can't cover does.
+const MIN_LOCAL_SEARCH_RESULTS = 5;
 
 // GET /api/meals — public browsing, but personalizes favorite-status for
 // whoever the *token* says is logged in. Never derives that from a query
 // param: an unauthenticated caller can no longer probe "did user X
 // favorite meal Y" by passing an arbitrary ?userId=.
-router.get("/", optionalAuth, async (req, res) => {
+router.get("/", optionalAuth, recipeSearchLimiter, async (req, res) => {
   try {
     const {
       search,
@@ -66,6 +74,45 @@ router.get("/", optionalAuth, async (req, res) => {
       );
     }
 
+    // Hybrid fallback: a real search term ("chicken biryani", "chocolate
+    // cake") that the local catalog barely or doesn't cover falls through
+    // to the external recipe provider — see recipeProvider.searchRecipes.
+    // The same cuisine/mealType/calorie/protein filters the user picked
+    // are carried over so external results respect them too.
+    let usedExternal = false;
+    if (search && search.trim() && meals.length < MIN_LOCAL_SEARCH_RESULTS) {
+      const hybridConstraints = {
+        requestedSlot: mealType && mealType !== "All" ? mealType.toLowerCase() : null,
+        maxCalories: maxCalories ? Number(maxCalories) : null,
+        caloriePreference: "balanced",
+        minProtein: minProtein ? Number(minProtein) : null,
+        proteinPreference: "standard",
+        diet: null,
+        requestedCuisine: cuisine && cuisine !== "All" ? cuisine : null,
+        maxTimeMinutes: maxPrepTime ? Number(maxPrepTime) : null,
+        excludedTerms: [],
+      };
+      const allMealsForHybrid = await prisma.meal.findMany({
+        include: { ingredients: { include: { ingredient: true } } },
+      });
+      const hybrid = await searchRecipes({
+        rawQuery: search,
+        constraints: hybridConstraints,
+        allMeals: allMealsForHybrid,
+        minResults: MIN_LOCAL_SEARCH_RESULTS,
+        // The search box is always a dish-name/keyword field, distinct
+        // from the cuisine/calorie/mealType filter controls (which have
+        // non-empty defaults regardless of user intent) — text relevance
+        // must always gate a search term here. See searchLocalRecipes's
+        // own comment for why this differs from the AI Assistant's call.
+        requireTextMatch: true,
+      });
+      const existingIds = new Set(meals.map((m) => m.id));
+      const additions = hybrid.results.filter((m) => !existingIds.has(m.id));
+      meals = [...meals, ...additions];
+      usedExternal = hybrid.usedExternal;
+    }
+
     if (dietaryTag && dietaryTag !== "All") {
       meals = meals.filter((m) => {
         try {
@@ -92,6 +139,12 @@ router.get("/", optionalAuth, async (req, res) => {
       dietaryTags: JSON.parse(m.dietaryTags || "[]"),
       instructions: JSON.parse(m.instructions || "[]"),
       isFavorite: favoriteMealIds.has(m.id),
+      // Favoriting only exists for real local rows (a FK to Meal) — an
+      // external recipe's id is a synthetic string, so it's never a match
+      // and isFavorite correctly stays false rather than erroring.
+      source: m.source || "local",
+      sourceUrl: m.sourceUrl || null,
+      sourceName: m.sourceName || null,
     }));
 
     if (sortBy === "calories_desc") formatted.sort((a, b) => b.calories - a.calories);
@@ -100,7 +153,7 @@ router.get("/", optionalAuth, async (req, res) => {
     else if (sortBy === "title_asc") formatted.sort((a, b) => a.title.localeCompare(b.title));
     else if (sortBy === "calories_asc") formatted.sort((a, b) => a.calories - b.calories);
 
-    res.json({ count: formatted.length, meals: formatted });
+    res.json({ count: formatted.length, meals: formatted, usedExternal });
   } catch (error) {
     console.error("Error fetching meals:", error);
     res.status(500).json({ error: "Failed to fetch meals" });

@@ -8,6 +8,11 @@ const MealCard = ({ meal, onSelectMeal, onPlanMeal, onLogMeal, isFavoriteInitial
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [showPlanMenu, setShowPlanMenu] = useState(false);
   const [plannedSuccess, setPlannedSuccess] = useState(false);
+  // Favoriting/planning/logging need a real row in our database (a
+  // foreign key to it) — an externally-sourced recipe has a synthetic id
+  // and isn't stored here, so those actions are hidden rather than left
+  // to fail against a meal that doesn't exist locally.
+  const isExternal = meal.source && meal.source !== "local";
 
   const toggleFav = async (e) => {
     e.stopPropagation();
@@ -66,19 +71,26 @@ const MealCard = ({ meal, onSelectMeal, onPlanMeal, onLogMeal, isFavoriteInitial
           <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-zinc-950/80 backdrop-blur-md text-zinc-300 border border-zinc-800">
             {meal.mealType?.charAt(0).toUpperCase() + meal.mealType?.slice(1)}
           </span>
+          {isExternal && (
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-zinc-950/80 backdrop-blur-md text-amber-300 border border-amber-500/20">
+              Web recipe
+            </span>
+          )}
         </div>
 
-        {/* Favorite Button */}
-        <button
-          onClick={toggleFav}
-          disabled={favoriteLoading}
-          aria-label="Toggle Favorite"
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-red-400 transition-colors"
-        >
-          <Heart
-            className={`w-4 h-4 ${isFavorite ? "fill-red-500 text-red-500" : ""}`}
-          />
-        </button>
+        {/* Favorite Button — external recipes aren't stored locally, so favoriting isn't available */}
+        {!isExternal && (
+          <button
+            onClick={toggleFav}
+            disabled={favoriteLoading}
+            aria-label="Toggle Favorite"
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-red-400 transition-colors"
+          >
+            <Heart
+              className={`w-4 h-4 ${isFavorite ? "fill-red-500 text-red-500" : ""}`}
+            />
+          </button>
+        )}
 
         {/* Prep Time pill */}
         <div className="absolute bottom-3 left-3 flex items-center gap-1 text-[11px] font-medium text-zinc-300 bg-zinc-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-zinc-800">
@@ -147,49 +159,64 @@ const MealCard = ({ meal, onSelectMeal, onPlanMeal, onLogMeal, isFavoriteInitial
             View Recipe
           </button>
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowPlanMenu(!showPlanMenu);
-              }}
-              title="Add to Meal Plan"
-              className={`p-1.5 rounded-lg border text-xs font-medium flex items-center gap-1 transition-colors ${
-                plannedSuccess
-                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                  : "bg-emerald-500 hover:bg-emerald-400 text-zinc-950 border-transparent"
-              }`}
-            >
-              {plannedSuccess ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            </button>
-
-            {/* Quick Plan Dropdown */}
-            {showPlanMenu && (
-              <div
+          {isExternal ? (
+            meal.sourceUrl && (
+              <a
+                href={meal.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 bottom-full mb-2 w-48 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-2.5 z-30"
+                title={`View original recipe${meal.sourceName ? ` on ${meal.sourceName}` : ""}`}
+                className="p-1.5 px-2.5 rounded-lg border text-[11px] font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700/50 transition-colors whitespace-nowrap"
               >
-                <p className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-2">
-                  Plan for Day:
-                </p>
-                <div className="grid grid-cols-4 gap-1 mb-2">
-                  {days.map((d) => (
-                    <button
-                      key={d.key}
-                      onClick={(e) => handleQuickPlan(e, d.key, meal.mealType || "dinner")}
-                      className="text-xs py-1 rounded bg-zinc-800 hover:bg-emerald-600 hover:text-white text-zinc-300 transition-colors font-medium text-center"
-                    >
-                      {d.label}
-                    </button>
-                  ))}
+                Source ↗
+              </a>
+            )
+          ) : (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPlanMenu(!showPlanMenu);
+                }}
+                title="Add to Meal Plan"
+                className={`p-1.5 rounded-lg border text-xs font-medium flex items-center gap-1 transition-colors ${
+                  plannedSuccess
+                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                    : "bg-emerald-500 hover:bg-emerald-400 text-zinc-950 border-transparent"
+                }`}
+              >
+                {plannedSuccess ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+              </button>
+
+              {/* Quick Plan Dropdown */}
+              {showPlanMenu && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 bottom-full mb-2 w-48 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-2.5 z-30"
+                >
+                  <p className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-2">
+                    Plan for Day:
+                  </p>
+                  <div className="grid grid-cols-4 gap-1 mb-2">
+                    {days.map((d) => (
+                      <button
+                        key={d.key}
+                        onClick={(e) => handleQuickPlan(e, d.key, meal.mealType || "dinner")}
+                        className="text-xs py-1 rounded bg-zinc-800 hover:bg-emerald-600 hover:text-white text-zinc-300 transition-colors font-medium text-center"
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 text-center">
+                    Slot: {meal.mealType || "dinner"}
+                  </p>
                 </div>
-                <p className="text-[10px] text-zinc-400 text-center">
-                  Slot: {meal.mealType || "dinner"}
-                </p>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

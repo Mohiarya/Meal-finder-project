@@ -26,6 +26,8 @@ const MealModal = ({ meal, onClose, onOpenSwap, onMealLogged, onMealPlanned }) =
 
   if (!meal) return null;
 
+  const isExternal = meal.source && meal.source !== "local";
+
   const multiplier = servings / (meal.servings || 1);
   const scaledCalories = Math.round(meal.calories * multiplier);
   const scaledProtein = Math.round(meal.protein * multiplier * 10) / 10;
@@ -114,21 +116,28 @@ const MealModal = ({ meal, onClose, onOpenSwap, onMealLogged, onMealPlanned }) =
                   <Clock className="w-3.5 h-3.5 text-emerald-400" />
                   <span>{meal.prepTimeMinutes + meal.cookTimeMinutes} mins total</span>
                 </div>
+                {isExternal && (
+                  <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    Web recipe{meal.sourceName ? ` · ${meal.sourceName}` : ""}
+                  </span>
+                )}
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
                 {meal.title}
               </h2>
             </div>
 
-            <button
-              onClick={handleToggleFavorite}
-              aria-label="Toggle Favorite"
-              className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-red-400 transition-colors"
-            >
-              <Heart
-                className={`w-5 h-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`}
-              />
-            </button>
+            {!isExternal && (
+              <button
+                onClick={handleToggleFavorite}
+                aria-label="Toggle Favorite"
+                className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-red-400 transition-colors"
+              >
+                <Heart
+                  className={`w-5 h-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`}
+                />
+              </button>
+            )}
           </div>
         </div>
 
@@ -137,6 +146,19 @@ const MealModal = ({ meal, onClose, onOpenSwap, onMealLogged, onMealPlanned }) =
           <p className="text-zinc-300 text-sm sm:text-base leading-relaxed">
             {meal.description}
           </p>
+          {isExternal && (
+            <p className="text-xs text-amber-300/80 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+              This recipe came from an external provider, not our curated database — nutrition values are provider-reported and not independently verified.
+              {meal.sourceUrl && (
+                <>
+                  {" "}
+                  <a href={meal.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-200">
+                    View the original recipe{meal.sourceName ? ` on ${meal.sourceName}` : ""} ↗
+                  </a>
+                </>
+              )}
+            </p>
+          )}
 
           {/* Serving Scaler & Macro Overview */}
           <div className="bg-zinc-950/70 border border-zinc-800 rounded-2xl p-4 sm:p-5">
@@ -245,68 +267,84 @@ const MealModal = ({ meal, onClose, onOpenSwap, onMealLogged, onMealPlanned }) =
             </ol>
           </div>
 
-          {/* Action Bar */}
+          {/* Action Bar — planning/logging/swapping need a real local
+              database row, so external recipes only offer the source link. */}
           <div className="pt-4 border-t border-zinc-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            {/* Swap Meal trigger */}
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onOpenSwap && onOpenSwap(meal);
-              }}
-              className="py-2.5 px-4 rounded-xl text-xs font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>Smart Swap Similar Meal</span>
-            </button>
+            {isExternal ? (
+              meal.sourceUrl && (
+                <a
+                  href={meal.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-4 rounded-xl text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 flex items-center justify-center gap-1.5 transition-colors w-full sm:w-auto"
+                >
+                  <span>View Original Recipe ↗</span>
+                </a>
+              )
+            ) : (
+              <>
+                {/* Swap Meal trigger */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenSwap && onOpenSwap(meal);
+                  }}
+                  className="py-2.5 px-4 rounded-xl text-xs font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>Smart Swap Similar Meal</span>
+                </button>
 
-            <div className="flex items-center gap-2">
-              {/* Plan dropdowns */}
-              <select
-                value={planDay}
-                onChange={(e) => setPlanDay(e.target.value)}
-                className="bg-zinc-950 border border-zinc-700 text-xs rounded-xl px-2.5 py-2.5 text-zinc-200"
-              >
-                <option value="mon">Mon</option>
-                <option value="tue">Tue</option>
-                <option value="wed">Wed</option>
-                <option value="thu">Thu</option>
-                <option value="fri">Fri</option>
-                <option value="sat">Sat</option>
-                <option value="sun">Sun</option>
-              </select>
+                <div className="flex items-center gap-2">
+                  {/* Plan dropdowns */}
+                  <select
+                    value={planDay}
+                    onChange={(e) => setPlanDay(e.target.value)}
+                    className="bg-zinc-950 border border-zinc-700 text-xs rounded-xl px-2.5 py-2.5 text-zinc-200"
+                  >
+                    <option value="mon">Mon</option>
+                    <option value="tue">Tue</option>
+                    <option value="wed">Wed</option>
+                    <option value="thu">Thu</option>
+                    <option value="fri">Fri</option>
+                    <option value="sat">Sat</option>
+                    <option value="sun">Sun</option>
+                  </select>
 
-              <select
-                value={planSlot}
-                onChange={(e) => setPlanSlot(e.target.value)}
-                className="bg-zinc-950 border border-zinc-700 text-xs rounded-xl px-2.5 py-2.5 text-zinc-200 capitalize"
-              >
-                <option value="breakfast">Breakfast</option>
-                <option value="lunch">Lunch</option>
-                <option value="dinner">Dinner</option>
-                <option value="snack">Snack</option>
-              </select>
+                  <select
+                    value={planSlot}
+                    onChange={(e) => setPlanSlot(e.target.value)}
+                    className="bg-zinc-950 border border-zinc-700 text-xs rounded-xl px-2.5 py-2.5 text-zinc-200 capitalize"
+                  >
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                  </select>
 
-              {/* Add to plan */}
-              <button
-                type="button"
-                onClick={handlePlanMeal}
-                className="py-2.5 px-3 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors"
-              >
-                {planningStatus === "success" ? <Check className="w-4 h-4" /> : <Calendar className="w-4 h-4" />}
-                <span>{planningStatus === "success" ? "Planned!" : "Add to Plan"}</span>
-              </button>
+                  {/* Add to plan */}
+                  <button
+                    type="button"
+                    onClick={handlePlanMeal}
+                    className="py-2.5 px-3 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors"
+                  >
+                    {planningStatus === "success" ? <Check className="w-4 h-4" /> : <Calendar className="w-4 h-4" />}
+                    <span>{planningStatus === "success" ? "Planned!" : "Add to Plan"}</span>
+                  </button>
 
-              {/* Log as eaten */}
-              <button
-                type="button"
-                onClick={handleLogMeal}
-                className="py-2.5 px-4 rounded-xl text-xs font-semibold bg-emerald-400 hover:bg-emerald-300 text-zinc-950 flex items-center gap-1.5 transition-colors shadow-lg shadow-emerald-500/20"
-              >
-                {loggingStatus === "success" ? <Check className="w-4 h-4" /> : <Flame className="w-4 h-4" />}
-                <span>{loggingStatus === "success" ? "Logged!" : "Log as Eaten"}</span>
-              </button>
-            </div>
+                  {/* Log as eaten */}
+                  <button
+                    type="button"
+                    onClick={handleLogMeal}
+                    className="py-2.5 px-4 rounded-xl text-xs font-semibold bg-emerald-400 hover:bg-emerald-300 text-zinc-950 flex items-center gap-1.5 transition-colors shadow-lg shadow-emerald-500/20"
+                  >
+                    {loggingStatus === "success" ? <Check className="w-4 h-4" /> : <Flame className="w-4 h-4" />}
+                    <span>{loggingStatus === "success" ? "Logged!" : "Log as Eaten"}</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -381,5 +381,8 @@ export function formatMeal(m, constraints = {}) {
     })),
     calorieDifference: constraints.maxCalories ? m.calories - constraints.maxCalories : 0,
     proteinDifference: constraints.minProtein ? Math.round((m.protein - constraints.minProtein) * 10) / 10 : 0,
+    source: m.source || "local",
+    sourceUrl: m.sourceUrl || null,
+    sourceName: m.sourceName || null,
   };
 }

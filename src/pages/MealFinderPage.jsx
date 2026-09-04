@@ -31,6 +31,7 @@ const MealFinderPage = () => {
   const [activeMeal, setActiveMeal] = useState(null);
   const [swapState, setSwapState] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [usedExternal, setUsedExternal] = useState(false);
 
   const fetchMeals = async () => {
     try {
@@ -45,6 +46,7 @@ const MealFinderPage = () => {
         sortBy: sortBy === "relevance" ? undefined : sortBy,
       });
       setMeals(res.meals || []);
+      setUsedExternal(Boolean(res.usedExternal));
       setVisibleCount(18);
     } catch (err) {
       console.error("Failed to load meals:", err);
@@ -263,7 +265,7 @@ const MealFinderPage = () => {
       {/* Results Meta */}
       <div className="flex items-center justify-between px-1">
         <span className="text-xs text-zinc-400 font-medium">
-          Showing <span className="text-white font-bold">{Math.min(visibleCount, meals.length)}</span> of <span className="text-emerald-400 font-bold">{meals.length}</span> curated recipes
+          Showing <span className="text-white font-bold">{Math.min(visibleCount, meals.length)}</span> of <span className="text-emerald-400 font-bold">{meals.length}</span> {usedExternal ? "recipes" : "curated recipes"}
         </span>
         {(search || cuisine !== "All" || mealType !== "All" || dietaryTag !== "All" || maxCalories !== 800 || minProtein !== 0 || sortBy !== "relevance") && (
           <button
@@ -274,6 +276,12 @@ const MealFinderPage = () => {
           </button>
         )}
       </div>
+
+      {usedExternal && (
+        <div className="px-3.5 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+          Our local catalog didn't have enough matches for "{search}", so some results below came from an external recipe search — look for the "Web recipe" badge. Your calorie/protein/cuisine filters still apply to those too.
+        </div>
+      )}
 
       {/* Meals Grid */}
       {loading ? (
