@@ -1,70 +1,83 @@
-# Getting Started with Create React App
+# Meal Finder & AI Nutrition Platform 🥗⚡
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A modern, full-stack, AI-powered nutrition and meal planning platform featuring a curated gourmet recipe catalog, deterministic macro-aware recommendation engine, weekly meal planner, live macro tracking, and consolidated smart grocery lists.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 🌟 Key Features
 
-### `npm start`
+1. **AI Nutrition Copilot** (`/ai`):
+   - Multi-constraint semantic query extraction (calories, protein, meal slots, dietary restrictions, allergens).
+   - Deterministic protein-to-calorie density scoring ($P / (kcal/100)$).
+   - Zero-hallucination guarantee: macros, ingredients, and instructions are queried directly from the SQLite database.
+   - **Cook With What I Have**: Pantry ingredient matching with 1-click sync to your consolidated grocery list.
+2. **Gourmet Recipe Catalog** (`/meals`):
+   - **110 chef-curated recipes** across 10 authentic cuisines (Indian, Mediterranean, Italian, Mexican, American, Japanese, Korean, Thai, Middle Eastern, Asian Fusion).
+   - Filter by meal type, dietary preferences (Vegan, Vegetarian, Pescatarian, Keto, Low-Calorie, High-Protein), calories, and protein.
+   - Dynamic sorting (*Lowest Calories*, *Highest Calories*, *Highest Protein Density*, *Fastest Prep*) and responsive 18-recipe pagination.
+   - Interactive recipe modal with dynamic serving size scaling.
+3. **Weekly Meal Planner** (`/planner`):
+   - Interactive 7-day grid (Monday to Sunday) across 4 daily meal slots (Breakfast, Lunch, Dinner, Snack).
+   - 1-click recipe swapping with macro compatibility filtering.
+   - Mark meals as completed or duplicate daily meal plans.
+4. **Live Nutrition Tracker & Analytics** (`/tracker`):
+   - Daily calorie, protein, carbs, and fat progress bars against personal TDEE targets.
+   - Water hydration tracker.
+   - Weekly macro analytics breakdown.
+5. **Smart Consolidated Grocery List** (`/grocery`):
+   - Automatically aggregates ingredients from your active weekly meal plan.
+   - Categorized by department (Produce, Protein, Dairy, Grains, Pantry, Spices).
+   - Checklist with item strike-through and 1-click clear.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🚀 Quick Start
 
-### `npm test`
+### 1. Prerequisites
+- **Node.js** v18+
+- **npm** v9+
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 2. Installation
+```bash
+# Install frontend dependencies
+npm install
 
-### `npm run build`
+# Install backend dependencies
+cd backend && npm install && cd ..
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 3. Database Setup & Seeding
+```bash
+# Generate Prisma client and seed 110 recipes + demo user
+npm run seed
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 4. Running the Platform
+Run the backend server and frontend development server in separate terminals:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+# Terminal 1: Start Express Backend API (Port 5050)
+npm run server
 
-### `npm run eject`
+# Terminal 2: Start Vite Dev Server (Port 3002)
+npm run dev -- --port 3002
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Open **[http://localhost:3002](http://localhost:3002)** in your browser.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 🔑 Demo Account Credentials
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+| Email | Password |
+|---|---|
+| `demo@mealfinder.com` | `demo12345` |
 
-## Learn More
+---
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## 🛠 Tech Stack
 
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- **Frontend**: React 19, Vite, Tailwind CSS v4, Lucide React, Recharts
+- **Backend**: Node.js, Express, Prisma ORM, SQLite
+- **Authentication**: JWT (JSON Web Tokens) with bcrypt password hashing
+- **AI Engine**: Deterministic Semantic Parser + Macro-Density Optimizer + Optional OpenAI GPT-4o-mini enrichment

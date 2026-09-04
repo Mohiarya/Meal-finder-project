@@ -1,0 +1,167 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  profile      Profile?
+  mealPlans    MealPlan[]
+  mealLogs     MealLog[]
+  waterLogs    WaterLog[]
+  favorites    Favorite[]
+  groceryItems GroceryItem[]
+}
+
+model Profile {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age                   Int?
+  gender                String?
+  weight                Float?
+  height                Float?
+  activityLevel         String?  @default("moderate") // sedentary, light, moderate, active, very_active
+  goal                  String?  @default("healthy_eating") // weight_loss, muscle_gain, maintenance, healthy_eating
+  dietPreference        String?  @default("omnivore") // omnivore, vegetarian, vegan, pescatarian, keto, paleo
+  allergies             String?  @default("[]") // JSON string array
+  dislikedFoods         String?  @default("[]") // JSON string array
+  cuisines              String?  @default("[]") // JSON string array
+  mealsPerDay           Int?     @default(3)
+  cookingTimePreference Int?     @default(30)
+  weeklyBudget          Float?   @default(75)
+  dailyCalorieTarget    Int      @default(2000)
+  proteinTarget         Int      @default(120)
+  carbsTarget           Int      @default(220)
+  fatTarget             Int      @default(65)
+  waterTargetMl         Int      @default(2500)
+  updatedAt             DateTime @updatedAt
+}
+
+model Meal {
+  id              String           @id @default(uuid())
+  title           String
+  description     String
+  imageUrl        String
+  calories        Int
+  protein         Float
+  carbs           Float
+  fat             Float
+  prepTimeMinutes Int              @default(15)
+  cookTimeMinutes Int              @default(15)
+  servings        Int              @default(1)
+  difficulty      String           @default("medium") // easy, medium, hard
+  mealType        String           @default("dinner") // breakfast, lunch, dinner, snack
+  cuisine         String           @default("General")
+  dietaryTags     String           @default("[]") // JSON string array e.g. ["High-Protein", "Vegetarian"]
+  instructions    String           @default("[]") // JSON string array of steps
+  isCustom        Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+
+  ingredients     MealIngredient[]
+  plannedMeals    PlannedMeal[]
+  favorites       Favorite[]
+  mealLogs        MealLog[]
+}
+
+model Ingredient {
+  id        String           @id @default(uuid())
+  name      String           @unique
+  category  String           @default("Other") // Produce, Protein, Dairy, Grains, Pantry, Spices, Other
+  meals     MealIngredient[]
+}
+
+model MealIngredient {
+  id           String     @id @default(uuid())
+  mealId       String
+  meal         Meal       @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  amount       Float
+  unit         String
+}
+
+model MealPlan {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStartDate String        // YYYY-MM-DD representing Monday of that week
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  plannedMeals  PlannedMeal[]
+
+  @@unique([userId, weekStartDate])
+}
+
+model PlannedMeal {
+  id          String   @id @default(uuid())
+  mealPlanId  String
+  mealPlan    MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  mealId      String
+  meal        Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  dayOfWeek   String   // mon, tue, wed, thu, fri, sat, sun
+  slot        String   // breakfast, lunch, dinner, snack
+  servings    Int      @default(1)
+  isCompleted Boolean  @default(false)
+}
+
+model MealLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealId    String?
+  meal      Meal?    @relation(fields: [mealId], references: [id], onDelete: SetNull)
+  mealTitle String
+  slot      String   // breakfast, lunch, dinner, snack
+  loggedAt  DateTime @default(now())
+  date      String   // YYYY-MM-DD
+  calories  Int
+  protein   Float
+  carbs     Float
+  fat       Float
+  servings  Int      @default(1)
+}
+
+model WaterLog {
+  id       String @id @default(uuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date     String // YYYY-MM-DD
+  amountMl Int    @default(0)
+
+  @@unique([userId, date])
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealId    String
+  meal      Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, mealId])
+}
+
+model GroceryItem {
+  id            String  @id @default(uuid())
+  userId        String
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStartDate String  // YYYY-MM-DD
+  name          String
+  category      String  @default("Other")
+  totalAmount   Float
+  unit          String
+  isChecked     Boolean @default(false)
+}
