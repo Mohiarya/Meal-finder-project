@@ -16,14 +16,15 @@ import aiRoutes from "./routes/ai.js";
 // real routes on an ephemeral port without a real server process.
 
 // CORS: only real, known origins may call this API from a browser.
-// CLIENT_ORIGIN is the deployed frontend's URL in production; local dev
-// ports are always allowed so `npm run dev` needs no extra setup. This is
+// CLIENT_ORIGIN is the deployed frontend's URL. Local dev ports are only
+// added outside production — in production the deployed frontend origin
+// is the only one that should ever be allowed, not localhost ports on
+// whoever's machine happens to be running a browser. This is
 // deliberately NOT origin: "*" — the JWT lives in the browser and is sent
 // as a Bearer token, so an open CORS policy would let any site that can
 // get a copy of a user's token (e.g. via XSS elsewhere) replay it here.
 const allowedOrigins = [
-  "http://localhost:3002",
-  "http://localhost:5173",
+  ...(process.env.NODE_ENV === "production" ? [] : ["http://localhost:3002", "http://localhost:5173"]),
   process.env.CLIENT_ORIGIN,
 ].filter(Boolean);
 

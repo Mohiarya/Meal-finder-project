@@ -9,6 +9,8 @@
     "dev": "node --watch server.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
     "seed": "node prisma/seed.js",
     "validate-recipes": "node scripts/validateRecipes.js",
     "test": "node --test"
