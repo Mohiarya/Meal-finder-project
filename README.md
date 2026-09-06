@@ -5,14 +5,46 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-4.21-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com/)
 [![Prisma](https://img.shields.io/badge/Prisma-6.4-2D3748?style=flat-square&logo=prisma&logoColor=white)](https://www.prisma.io/)
-[![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://neon.tech/)
 [![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Deployed on Vercel](https://img.shields.io/badge/Frontend-Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://meal-finder-project-theta.vercel.app)
+[![Deployed on Render](https://img.shields.io/badge/Backend-Render-46E3B7?style=flat-square&logo=render&logoColor=white)](https://meal-finder-project.onrender.com)
 
 A full-stack nutrition and meal-planning app: a 110-recipe curated database backed by an optional external recipe provider for dish-name searches the local catalog doesn't cover, a **deterministic** (non-LLM) recommendation engine that enforces hard nutritional and dietary constraints instead of trusting an AI model to get them right, a 7-day meal planner, daily macro/hydration tracking against personalized TDEE targets, and a grocery list auto-generated from the planned week.
 
 This is a dynamically expandable recipe catalog, not an unlimited one — see [External Recipe Search](#external-recipe-search) for exactly what that means and what it costs.
 
 An optional OpenAI key can be added to rephrase the engine's already-computed recommendation in a more conversational tone — the app is fully functional, and every number it shows is database-verified, without that key.
+
+---
+
+## Live Demo
+
+**App:** [meal-finder-project-theta.vercel.app](https://meal-finder-project-theta.vercel.app)
+**API:** [meal-finder-project.onrender.com](https://meal-finder-project.onrender.com/api/health)
+
+```
+Demo account —  Email: demo@mealfinder.com   Password: demo12345
+```
+
+The login page also has a one-click "Demo Login" button, seeded with a real profile, a 7-day meal plan, tracker history, and a favorite.
+
+The backend runs on Render's free tier, which spins down after ~15 minutes of inactivity — **the first request after a quiet period can take 30–60 seconds** while it wakes back up. That's the platform's documented free-tier behavior, not a bug. Subsequent requests are fast.
+
+---
+
+## Tech Stack
+
+| | |
+|---|---|
+| **Frontend** | React 19, Vite, Tailwind CSS v4, React Router |
+| **Backend** | Node.js, Express |
+| **Database** | PostgreSQL via Prisma ORM (Neon, serverless) |
+| **Auth** | JWT (bearer token) + bcrypt |
+| **AI / recommendations** | A deterministic constraint engine (own code, not an LLM) for meal selection; optional OpenAI GPT-4o-mini for rephrasing only |
+| **External data** | Spoonacular API, as a local-first hybrid fallback |
+| **Testing** | `node:test` (backend, 99 tests), Vitest (frontend, 3 tests) |
+| **Hosting** | Vercel (frontend), Render (backend) |
 
 ---
 
@@ -46,7 +78,8 @@ An optional OpenAI key can be added to rephrase the engine's already-computed re
 
 ```mermaid
 graph TD
-    A[React 19 + Vite Frontend] -->|JWT Bearer Auth| B(Express Backend API - port 5050)
+    U[Browser] -->|HTTPS| A[React 19 + Vite\ndeployed on Vercel]
+    A -->|JWT Bearer Auth, VITE_API_URL| B(Express Backend API\ndeployed on Render)
     B --> C[Auth & Profile Router]
     B --> D[Meals Router]
     B --> E[AI Assistant Router]
@@ -58,7 +91,7 @@ graph TD
     D --> L[recipeProvider.js\nlocal-first hybrid search]
     E --> L
     L --> K
-    K --> I[(SQLite via Prisma)]
+    K --> I[(PostgreSQL via Prisma\nhosted on Neon)]
     L -.->|only when local coverage is thin| M[Spoonacular API]
     E -.->|optional: rephrase text only| J[OpenAI GPT-4o-mini]
     F --> I
@@ -68,11 +101,13 @@ graph TD
 
 The AI Assistant chat and the Dashboard's unprompted "what's next" suggestion both go through the same `recommendationEngine.js` — constraint extraction, hard filtering, and fallback relaxation are shared, so a bug fixed in one path can't silently persist in the other. Only the final ranking strategy differs by design: the assistant ranks by relevance to the prompt, the dashboard ranks by closeness to the user's remaining calorie/protein budget. The Dashboard copilot deliberately stays local-only (no external fallback) — an unprompted suggestion should come from the catalog, not a live web search.
 
+Local development uses the same PostgreSQL provider as production (a separate Neon branch, not a different database engine) — see [Deployment](#deployment) for why, and [Quick Start](#quick-start) for the exact setup.
+
 ---
 
 ## External Recipe Search
 
-The local 110-recipe catalog is hand-curated and won't have every dish someone might search for. `backend/services/recipeProvider.js` adds a **local-first hybrid search**: it only calls an external API when the local catalog genuinely falls short, and external results are put through the *exact same* hard-constraint gate (`matchesHardConstraints` from `recommendationEngine.js`) as local ones — the recommendation engine has no idea, and doesn't need to know, whether a given recipe came from SQLite or the network.
+The local 110-recipe catalog is hand-curated and won't have every dish someone might search for. `backend/services/recipeProvider.js` adds a **local-first hybrid search**: it only calls an external API when the local catalog genuinely falls short, and external results are put through the *exact same* hard-constraint gate (`matchesHardConstraints` from `recommendationEngine.js`) as local ones — the recommendation engine has no idea, and doesn't need to know, whether a given recipe came from the local database or the network.
 
 ### Why Spoonacular, not Edamam
 
@@ -103,9 +138,60 @@ An external recipe has a synthetic id (`ext-spoonacular-<id>`), not a row in the
 
 - **Free tier**: 50 points/day, no credit card, via a direct spoonacular.com signup (not the RapidAPI marketplace, which does require a card for overages this app is designed to never incur).
 - **Internal safety margin**: `recipeProvider.js` tracks an estimated points budget (35/day, reset daily) independently of Spoonacular's own 50/day limit, so the app degrades to local-only *before* the real quota is hit rather than after.
-- **Caching**: capped at 1 hour in-memory (`recipeProvider.js`'s own cache), matching Spoonacular's terms exactly — external results are never written to SQLite or otherwise persisted longer than that.
+- **Caching**: capped at 1 hour in-memory (`recipeProvider.js`'s own cache), matching Spoonacular's terms exactly — external results are never written to the database or otherwise persisted longer than that.
 - **Attribution**: every external recipe links back to its original source (`sourceUrl`), shown on its card and detail view, satisfying Spoonacular's attribution requirement on the free tier.
 - **Fully optional**: with no `RECIPE_API_KEY` set, `recipeProvider.js` skips external calls entirely and the app runs exactly as it did before this feature existed — local-only, no error, no degraded UX beyond not finding a dish outside the 110.
+
+---
+
+## Deployment
+
+Three separate free-tier services, chosen deliberately rather than defaulting to whatever's easiest — see the reasoning below, not just the result.
+
+| Layer | Platform | Why |
+|---|---|---|
+| Frontend | **Vercel** | Zero-config static hosting for a Vite build; a `vercel.json` handles the SPA rewrite (client-side routes 404 on refresh without it) and pins the build/output config explicitly, since this repo is a monorepo (`backend/` sits alongside the frontend) and auto-detection alone isn't reliable there. |
+| Backend | **Render** (free web service) | Railway no longer has an ongoing free tier (a 30-day trial, then paid). Render's free tier is genuinely free indefinitely — the tradeoff is the service sleeping after ~15 min idle, with a slow first request after that. Acceptable for a portfolio project; not what you'd pick for something latency-sensitive at real traffic. |
+| Database | **Neon** (PostgreSQL) | Not Render's own Postgres add-on — Render's free Postgres expires **30 days** after creation and is then deleted, which would silently wipe this project's data a month in. Neon's free tier (0.5GB, 100 compute-hours/month, scale-to-zero) has no such expiration. |
+
+**Why PostgreSQL and not SQLite in production:** Render's filesystem is ephemeral — a SQLite file would be wiped on every restart/redeploy. The Prisma schema now targets `postgresql` everywhere, including local development (a separate Neon branch, not a different engine), so there's no drift between what's tested locally and what runs in production, and no need to maintain two schema files.
+
+### Environment variables by platform
+
+**Render (backend):**
+
+| Var | Purpose |
+|---|---|
+| `DATABASE_URL` | Neon **production** branch connection string |
+| `JWT_SECRET` | A secret distinct from the one used in local development |
+| `CLIENT_ORIGIN` | The exact Vercel URL — CORS rejects everything else in production |
+| `RECIPE_API_KEY` | Spoonacular key (optional — see [External Recipe Search](#external-recipe-search)) |
+| `OPENAI_API_KEY` | Optional (see [AI Configuration](#ai-configuration)) |
+| `NODE_ENV` | `production` |
+
+**Vercel (frontend):**
+
+| Var | Purpose |
+|---|---|
+| `VITE_API_URL` | The Render backend's URL + `/api`. Vite bakes this in **at build time**, not runtime — changing it requires a rebuild, not just a saved env var. |
+
+None of these live in any committed file — `.env.example` files are placeholders only, and the real values exist solely in each platform's own environment-variable UI.
+
+### Production database setup
+
+The migration/seed workflow deliberately keeps schema changes and data changes separate:
+
+```bash
+# Applied automatically on every Render deploy (safe — never destructive):
+npx prisma migrate deploy
+
+# Run manually, once, from a local machine pointed at the production
+# DATABASE_URL — never wired into the automated build/deploy pipeline,
+# because it fully wipes and reseeds:
+npm run seed
+```
+
+`prisma migrate deploy` only ever applies already-generated, already-tested migration files — it never generates new ones and never resets data. `npm run seed` is the one genuinely destructive operation in this project, and it's intentionally kept out of any automated pipeline for exactly that reason.
 
 ---
 
@@ -143,13 +229,16 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 `OPENAI_API_KEY` and `RECIPE_API_KEY` are both optional (see [AI Configuration](#ai-configuration) and [External Recipe Search](#external-recipe-search)) — the app is fully functional on the local catalog and the deterministic engine alone without either. The frontend's `.env` (`VITE_API_URL`) can stay empty for local development — it falls back to `http://localhost:5050/api`.
 
-### 4. Initialize and seed the database
+`DATABASE_URL` needs a real PostgreSQL connection string — local development uses the same provider as production, just a separate database. The simplest way to get one free: create a [Neon](https://neon.tech) project, and use its default branch's connection string directly for local dev, or (cleaner, if you're also touching schema) create a second branch for that purpose so it stays isolated from anything else.
+
+### 4. Set up and seed the database
 
 ```bash
-npm run seed
+cd backend
+npx prisma migrate dev --name init   # creates the tables
+npm run seed                          # populates the 110 recipes + demo account
+cd ..
 ```
-
-This creates `backend/prisma/dev.db`, seeds the 110 recipes, and creates a demo account (see below).
 
 ### 5. Run it
 
@@ -204,7 +293,7 @@ Coverage is intentionally scoped to logic where a bug would be silent and high-i
 
 - Passwords are hashed with bcrypt; sessions are JWTs sent as a `Bearer` token (not cookies).
 - Every meal-plan/tracker/favorite/grocery mutation verifies the resource belongs to the authenticated user before touching it, rather than trusting a client-supplied ID.
-- CORS is an explicit allowlist (`localhost:3002`, `localhost:5173`, and `CLIENT_ORIGIN` in production) — not `origin: "*"` — since the JWT is bearer-token-based and an open CORS policy would let any origin holding a copy of a token replay it.
+- CORS is an explicit allowlist — `localhost:3002`/`5173` only outside production, `CLIENT_ORIGIN` only (the deployed Vercel URL) when `NODE_ENV=production` — not `origin: "*"`, since the JWT is bearer-token-based and an open CORS policy would let any origin holding a copy of a token replay it.
 - Auth and AI endpoints are rate-limited (20 requests / 10 minutes) against brute-force and cost abuse.
 - Unhandled server errors return a generic message; only CORS rejections get a specific one. Internal error details are never sent to the client.
 
@@ -216,7 +305,8 @@ Being direct about what this project is and isn't, per the philosophy above:
 
 - **Recipe photography**: 110 recipes draw from 38 unique Unsplash images, so most photos are shared across more than one recipe. Three recipes that had a genuinely mismatched or dead image were fixed and manually verified; the remaining sharing is a real gap that would need either commissioned/licensed photography or a larger stock-photo budget to close properly, not a quick fix.
 - **In-memory filtering**: the recommendation engine and meal query endpoints filter/sort the recipe set in application memory rather than in SQL. At 110 recipes this is fast and simpler to reason about; it is not the approach that would be chosen for a catalog in the tens of thousands, but rewriting the filtering into SQL now would be premature for the current data size.
-- **SQLite on disk**: fine for local development and for platforms with a persistent disk (e.g. a Render/Fly.io volume, or a VM). If you deploy to a platform with an ephemeral filesystem (e.g. Vercel serverless functions, most PaaS "free tier" containers), the SQLite file will not persist across deploys or restarts — you'd want to point `DATABASE_URL` at a hosted Postgres/MySQL instance and swap Prisma's provider instead of trying to keep file-based SQLite there.
+- **Render's free-tier cold start**: the backend sleeps after ~15 minutes idle; the first request after that takes 30–60 seconds while it wakes up. A paid Render plan removes this; not worth the cost for a portfolio project's traffic level.
+- **Neon's free-tier limits**: 0.5GB storage, 100 compute-hours/month. Comfortably enough for this app's data size and expected traffic, but a real constraint if either grew significantly.
 - **No password reset / email verification flow** — registration and login work, but there's no email delivery integration.
 - **External search actions**: an externally-sourced recipe can be viewed but not favorited, planned, or logged (see [External Recipe Search](#external-recipe-search) for why) — the card links out to the original recipe instead.
 - **Verification status**: both paths have been verified live against a real Spoonacular key — a search with no local coverage (e.g. "chicken biryani", "chocolate cake") returns genuine external results with real attribution links and provider-reported macros, and removing the key drops the app back to local-only with no errors. The automated test suite additionally covers this logic against a mocked API response, independent of any real key or network call.
