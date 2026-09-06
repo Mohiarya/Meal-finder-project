@@ -25,7 +25,11 @@ import aiRoutes from "./routes/ai.js";
 // get a copy of a user's token (e.g. via XSS elsewhere) replay it here.
 const allowedOrigins = [
   ...(process.env.NODE_ENV === "production" ? [] : ["http://localhost:3002", "http://localhost:5173"]),
-  process.env.CLIENT_ORIGIN,
+  // .trim() guards against a stray trailing newline/whitespace in the
+  // platform's env var UI silently breaking every origin comparison —
+  // the browser's Origin header never has one, so an untrimmed value
+  // would never match and this whole check would just always fail.
+  process.env.CLIENT_ORIGIN?.trim(),
 ].filter(Boolean);
 
 export const app = express();
