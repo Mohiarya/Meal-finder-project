@@ -78,7 +78,7 @@ const GroceryPage = () => {
 
   const handleCopyClipboard = () => {
     if (!groceryData || !groceryData.items.length) return;
-    let text = "🛒 MealFinder Weekly Grocery List\n\n";
+    let text = "🛒 Meal Finder & Planner – Weekly Grocery List\n\n";
     Object.keys(groceryData.categories).forEach((cat) => {
       text += `[${cat.toUpperCase()}]\n`;
       groceryData.categories[cat].forEach((item) => {

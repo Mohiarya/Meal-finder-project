@@ -48,7 +48,7 @@ const Login = () => {
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 mx-auto flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
             <ChefHat className="w-6 h-6" />
           </div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight">Welcome to MealFinder</h2>
+          <h2 className="text-2xl font-extrabold text-white tracking-tight">Welcome to Meal Finder & Planner</h2>
           <p className="text-xs text-zinc-400">
             Sign in to access your personalized meal architecture
           </p>

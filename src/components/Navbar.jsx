@@ -48,12 +48,8 @@ const Navbar = () => {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-lg tracking-tight text-white">MealFinder</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Pro
-                </span>
+                <span className="font-extrabold text-lg tracking-tight text-white">Meal Finder & Planner</span>
               </div>
-              <p className="text-[11px] text-zinc-400 -mt-1 hidden sm:block">AI Nutrition & Planner</p>
             </div>
           </Link>
 
